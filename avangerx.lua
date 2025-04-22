@@ -75,7 +75,7 @@ local ConfigSystem = {}
 ConfigSystem.FileName = "HTHubARConfig_" .. game:GetService("Players").LocalPlayer.Name .. ".json"
 ConfigSystem.DefaultConfig = {
     -- Các cài đặt mặc định
-    UITheme = "Amethyst",
+    UITheme = "Blue",
     
     -- Cài đặt Shop/Summon
     SummonAmount = "x1",
