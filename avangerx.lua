@@ -2680,8 +2680,13 @@ MerchantSection:AddDropdown("MerchantItemsDropdown", {
         ConfigSystem.SaveConfig()
         
         local selectedItemsText = ""
-        for _, value in pairs(Values) do
-            selectedItemsText = selectedItemsText .. value .. ", "
+        -- Sửa cách xử lý Values để tránh lỗi
+        if type(Values) == "table" then
+            for item, isSelected in pairs(Values) do
+                if isSelected then
+                    selectedItemsText = selectedItemsText .. item .. ", "
+                end
+            end
         end
         
         if selectedItemsText ~= "" then
@@ -2698,10 +2703,13 @@ MerchantSection:AddButton({
     Title = "Buy Selected Items",
     Callback = function()
         local selectedItemsCount = 0
-        for _, item in pairs(selectedMerchantItems) do
-            selectedItemsCount = selectedItemsCount + 1
-            buyMerchantItem(item)
-            wait(0.5) -- Chờ 0.5 giây giữa các lần mua
+        -- Sửa cách duyệt qua selectedMerchantItems
+        for item, isSelected in pairs(selectedMerchantItems) do
+            if isSelected then
+                selectedItemsCount = selectedItemsCount + 1
+                buyMerchantItem(item)
+                wait(0.5) -- Chờ 0.5 giây giữa các lần mua
+            end
         end
         
         if selectedItemsCount == 0 then
@@ -2725,8 +2733,10 @@ MerchantSection:AddToggle("AutoMerchantBuyToggle", {
         
         if Value then
             local selectedItemsCount = 0
-            for _ in pairs(selectedMerchantItems) do
-                selectedItemsCount = selectedItemsCount + 1
+            for item, isSelected in pairs(selectedMerchantItems) do
+                if isSelected then
+                    selectedItemsCount = selectedItemsCount + 1
+                end
             end
             
             if selectedItemsCount == 0 then
@@ -2738,7 +2748,7 @@ MerchantSection:AddToggle("AutoMerchantBuyToggle", {
             else
                 Fluent:Notify({
                     Title = "Auto Merchant Buy",
-                    Content = "Auto Buy đã được bật, sẽ tự động mua items mỗi 30 giây",
+                    Content = "Auto Buy đã được bật, sẽ tự động mua items mỗi 2 giây",
                     Duration = 3
                 })
             end
@@ -2752,9 +2762,11 @@ MerchantSection:AddToggle("AutoMerchantBuyToggle", {
             -- Tạo vòng lặp mới để tự động mua
             spawn(function()
                 while autoMerchantBuyEnabled and wait(2) do -- Mua mỗi 2 giây
-                    for _, item in pairs(selectedMerchantItems) do
-                        buyMerchantItem(item)
-                        wait(0.5) -- Chờ 0.5 giây giữa các lần mua
+                    for item, isSelected in pairs(selectedMerchantItems) do
+                        if isSelected then
+                            buyMerchantItem(item)
+                            wait(0.5) -- Chờ 0.5 giây giữa các lần mua
+                        end
                     end
                 end
             end)
