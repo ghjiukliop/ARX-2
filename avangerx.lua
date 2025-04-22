@@ -224,7 +224,6 @@ local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or tru
 local autoRetryLoop = nil
 local autoNextLoop = nil
 local autoVoteLoop = nil
-local removeAnimationLoop = nil
 
 -- Biến lưu trạng thái Update Units
 local autoUpdateEnabled = ConfigSystem.CurrentConfig.AutoUpdate or false
@@ -2536,31 +2535,12 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
             
             -- Xóa animation ngay lập tức
             removeAnimations()
-            
-            -- Hủy vòng lặp cũ nếu có
-            if removeAnimationLoop then
-                removeAnimationLoop:Disconnect()
-                removeAnimationLoop = nil
-            end
-            
-            -- Tạo vòng lặp mới để liên tục xóa animation
-            removeAnimationLoop = spawn(function()
-                while removeAnimationEnabled and wait(5) do -- Kiểm tra và xóa mỗi 5 giây
-                    removeAnimations()
-                end
-            end)
         else
             Fluent:Notify({
                 Title = "Remove Animation",
                 Content = "Remove Animation đã được tắt",
                 Duration = 2
             })
-            
-            -- Hủy vòng lặp nếu có
-            if removeAnimationLoop then
-                removeAnimationLoop:Disconnect()
-                removeAnimationLoop = nil
-            end
             
             -- Thông báo cần restart để khôi phục animation
             Fluent:Notify({
@@ -2578,19 +2558,6 @@ spawn(function()
     
     if removeAnimationEnabled then
         removeAnimations()
-        
-        -- Tạo vòng lặp để liên tục xóa animation
-        if removeAnimationLoop then
-            removeAnimationLoop:Disconnect()
-            removeAnimationLoop = nil
-        end
-        
-        removeAnimationLoop = spawn(function()
-            while removeAnimationEnabled and wait(5) do -- Kiểm tra và xóa mỗi 5 giây
-                removeAnimations()
-            end
-        end)
-        
         print("Đã kích hoạt Remove Animation")
     end
 end)
