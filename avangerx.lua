@@ -1,5 +1,14 @@
 -- Anime Rangers X Script
 
+-- Kiểm tra Place ID
+local currentPlaceId = game.PlaceId
+local allowedPlaceId = 72829404259339
+
+if currentPlaceId ~= allowedPlaceId then
+    warn("Script này chỉ hoạt động trên game Anime Rangers X (Place ID: " .. tostring(allowedPlaceId) .. ")")
+    return
+end
+
 -- Tải thư viện Fluent từ Arise
 local success, err = pcall(function()
     Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -425,6 +434,9 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, gameProce
         Window.Minimize()
     end
 end)
+
+-- Tự động chọn tab Info khi khởi động
+Window:SelectTab(1) -- Chọn tab đầu tiên (Info)
 
 -- Thêm section thông tin trong tab Info
 local InfoSection = InfoTab:AddSection("Thông tin")
