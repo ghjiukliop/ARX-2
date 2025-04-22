@@ -129,7 +129,11 @@ ConfigSystem.DefaultConfig = {
     AutoJoinAFK = false,
     
     -- Cài đặt UI
-    AutoHideUI = false
+    AutoHideUI = false,
+    
+    -- Cài đặt Merchant
+    SelectedMerchantItems = {},
+    AutoMerchantBuy = false
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -2612,3 +2616,160 @@ spawn(function()
         end)
     end
 end)
+
+-- Thêm section Merchant trong tab Shop
+local MerchantSection = ShopTab:AddSection("Merchant")
+
+-- Biến lưu trạng thái Merchant
+local selectedMerchantItems = ConfigSystem.CurrentConfig.SelectedMerchantItems or {}
+local autoMerchantBuyEnabled = ConfigSystem.CurrentConfig.AutoMerchantBuy or false
+local autoMerchantBuyLoop = nil
+
+-- Danh sách các item có thể mua từ Merchant
+local merchantItems = {
+    "Green Bean",
+    "Onigiri",
+    "Dr. Megga Punk", 
+    "Cursed Finger",
+    "Stats Key",
+    "French Fries",
+    "Trait Reroll",
+    "Ranger Crystal",
+    "Rubber Fruit"
+}
+
+-- Hàm để mua item từ Merchant
+local function buyMerchantItem(itemName)
+    local success, err = pcall(function()
+        local merchantRemote = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "Gameplay", "Merchant"}, 2)
+        
+        if merchantRemote then
+            local args = {
+                [1] = itemName,
+                [2] = 1
+            }
+            
+            merchantRemote:FireServer(unpack(args))
+            print("Đã mua item: " .. itemName)
+            
+            -- Hiển thị thông báo
+            Fluent:Notify({
+                Title = "Merchant",
+                Content = "Đã mua item: " .. itemName,
+                Duration = 2
+            })
+        else
+            warn("Không tìm thấy Remote Merchant")
+        end
+    end)
+    
+    if not success then
+        warn("Lỗi khi mua item từ Merchant: " .. tostring(err))
+    end
+end
+
+-- Dropdown để chọn nhiều items
+MerchantSection:AddDropdown("MerchantItemsDropdown", {
+    Title = "Select Items",
+    Values = merchantItems,
+    Multi = true,
+    Default = selectedMerchantItems,
+    Callback = function(Values)
+        selectedMerchantItems = Values
+        ConfigSystem.CurrentConfig.SelectedMerchantItems = Values
+        ConfigSystem.SaveConfig()
+        
+        local selectedItemsText = ""
+        for _, value in pairs(Values) do
+            selectedItemsText = selectedItemsText .. value .. ", "
+        end
+        
+        if selectedItemsText ~= "" then
+            selectedItemsText = selectedItemsText:sub(1, -3) -- Xóa dấu phẩy cuối cùng
+            print("Đã chọn items: " .. selectedItemsText)
+        else
+            print("Không có item nào được chọn")
+        end
+    end
+})
+
+-- Nút Buy Selected Item (mua thủ công)
+MerchantSection:AddButton({
+    Title = "Buy Selected Items",
+    Callback = function()
+        local selectedItemsCount = 0
+        for _, item in pairs(selectedMerchantItems) do
+            selectedItemsCount = selectedItemsCount + 1
+            buyMerchantItem(item)
+            wait(0.5) -- Chờ 0.5 giây giữa các lần mua
+        end
+        
+        if selectedItemsCount == 0 then
+            Fluent:Notify({
+                Title = "Merchant",
+                Content = "Không có item nào được chọn để mua",
+                Duration = 2
+            })
+        end
+    end
+})
+
+-- Toggle Auto Buy
+MerchantSection:AddToggle("AutoMerchantBuyToggle", {
+    Title = "Auto Buy",
+    Default = ConfigSystem.CurrentConfig.AutoMerchantBuy or false,
+    Callback = function(Value)
+        autoMerchantBuyEnabled = Value
+        ConfigSystem.CurrentConfig.AutoMerchantBuy = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            local selectedItemsCount = 0
+            for _ in pairs(selectedMerchantItems) do
+                selectedItemsCount = selectedItemsCount + 1
+            end
+            
+            if selectedItemsCount == 0 then
+                Fluent:Notify({
+                    Title = "Auto Merchant Buy",
+                    Content = "Auto Buy đã bật nhưng không có item nào được chọn",
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Auto Merchant Buy",
+                    Content = "Auto Buy đã được bật, sẽ tự động mua items mỗi 30 giây",
+                    Duration = 3
+                })
+            end
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoMerchantBuyLoop then
+                autoMerchantBuyLoop:Disconnect()
+                autoMerchantBuyLoop = nil
+            end
+            
+            -- Tạo vòng lặp mới để tự động mua
+            spawn(function()
+                while autoMerchantBuyEnabled and wait(2) do -- Mua mỗi 2 giây
+                    for _, item in pairs(selectedMerchantItems) do
+                        buyMerchantItem(item)
+                        wait(0.5) -- Chờ 0.5 giây giữa các lần mua
+                    end
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto Merchant Buy",
+                Content = "Auto Buy đã được tắt",
+                Duration = 3
+            })
+            
+            -- Hủy vòng lặp nếu có
+            if autoMerchantBuyLoop then
+                autoMerchantBuyLoop:Disconnect()
+                autoMerchantBuyLoop = nil
+            end
+        end
+    end
+})
