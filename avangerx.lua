@@ -133,7 +133,11 @@ ConfigSystem.DefaultConfig = {
     
     -- Cài đặt Merchant
     SelectedMerchantItems = {},
-    AutoMerchantBuy = false
+    AutoMerchantBuy = false,
+    
+    -- Cài đặt Auto TP Lobby
+    AutoTPLobby = false,
+    AutoTPLobbyDelay = 10 -- Mặc định 10 phút
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -337,7 +341,7 @@ local function CreateLogoUI()
     Button.BackgroundTransparency = 0.2
     Button.Position = UDim2.new(0.9, -25, 0.1, 0)
     Button.Size = UDim2.new(0, 50, 0, 50)
-    Button.Image = "https://media.discordapp.net/attachments/1321123079409238067/1364239705394122873/ChatGPT_Image_Apr_22_2025_09_01_03_PM.png?ex=6808f2bc&is=6807a13c&hm=f5b9974d43ac06614f7cc3ee032bb79a70215c7b4f17be06cada14b9786402e8&=&format=webp&quality=lossless&width=930&height=930"
+    Button.Image = "rbxassetid://72693446841279" -- Sử dụng ID của logo HT Hub
     Button.ImageTransparency = 0.1
     Button.Active = true
     Button.Draggable = true
@@ -1741,6 +1745,133 @@ ChallengeSection:AddButton({
 
 -- Thêm section In-Game Controls
 local InGameSection = InGameTab:AddSection("Game Controls")
+
+-- Thêm biến lưu trạng thái Auto TP Lobby
+local autoTPLobbyEnabled = ConfigSystem.CurrentConfig.AutoTPLobby or false
+local autoTPLobbyDelay = ConfigSystem.CurrentConfig.AutoTPLobbyDelay or 10 -- Mặc định 10 phút
+local autoTPLobbyLoop = nil
+
+-- Hàm để teleport về lobby
+local function teleportToLobby()
+    local success, err = pcall(function()
+        local Players = game:GetService("Players")
+        local TeleportService = game:GetService("TeleportService")
+        
+        -- Hiển thị thông báo trước khi teleport
+        Fluent:Notify({
+            Title = "Auto TP Lobby",
+            Content = "Đang teleport về lobby...",
+            Duration = 3
+        })
+        
+        -- Thực hiện teleport
+        for _, player in pairs(Players:GetPlayers()) do
+            if player == game:GetService("Players").LocalPlayer then
+                TeleportService:Teleport(game.PlaceId, player)
+                break -- Chỉ teleport người chơi hiện tại
+            end
+        end
+    end)
+    
+    if not success then
+        warn("Lỗi khi teleport về lobby: " .. tostring(err))
+    end
+end
+
+-- Slider điều chỉnh thời gian delay cho Auto TP Lobby
+InGameSection:AddSlider("AutoTPLobbyDelaySlider", {
+    Title = "Auto TP Lobby Delay (phút)",
+    Default = autoTPLobbyDelay,
+    Min = 1,
+    Max = 60,
+    Rounding = 0,
+    Callback = function(Value)
+        autoTPLobbyDelay = Value
+        ConfigSystem.CurrentConfig.AutoTPLobbyDelay = Value
+        ConfigSystem.SaveConfig()
+        
+        Fluent:Notify({
+            Title = "Auto TP Lobby",
+            Content = "Đã đặt thời gian delay: " .. Value .. " phút",
+            Duration = 2
+        })
+        
+        print("Đã đặt Auto TP Lobby Delay: " .. Value .. " phút")
+    end
+})
+
+-- Toggle Auto TP Lobby
+InGameSection:AddToggle("AutoTPLobbyToggle", {
+    Title = "Auto TP Lobby",
+    Default = autoTPLobbyEnabled,
+    Callback = function(Value)
+        autoTPLobbyEnabled = Value
+        ConfigSystem.CurrentConfig.AutoTPLobby = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            Fluent:Notify({
+                Title = "Auto TP Lobby",
+                Content = "Auto TP Lobby đã được bật, sẽ teleport sau " .. autoTPLobbyDelay .. " phút",
+                Duration = 3
+            })
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoTPLobbyLoop then
+                autoTPLobbyLoop:Disconnect()
+                autoTPLobbyLoop = nil
+            end
+            
+            -- Tạo vòng lặp mới
+            spawn(function()
+                local timeRemaining = autoTPLobbyDelay * 60 -- Chuyển đổi thành giây
+                
+                while autoTPLobbyEnabled and wait(1) do -- Đếm ngược mỗi giây
+                    timeRemaining = timeRemaining - 1
+                    
+                    -- Hiển thị thông báo khi còn 1 phút
+                    if timeRemaining == 60 then
+                        Fluent:Notify({
+                            Title = "Auto TP Lobby",
+                            Content = "Sẽ teleport về lobby trong 1 phút nữa",
+                            Duration = 3
+                        })
+                    end
+                    
+                    -- Khi hết thời gian, thực hiện teleport
+                    if timeRemaining <= 0 then
+                        if autoTPLobbyEnabled then
+                            teleportToLobby()
+                        end
+                        
+                        -- Reset thời gian đếm ngược
+                        timeRemaining = autoTPLobbyDelay * 60
+                    end
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto TP Lobby",
+                Content = "Auto TP Lobby đã được tắt",
+                Duration = 3
+            })
+            
+            -- Hủy vòng lặp nếu có
+            if autoTPLobbyLoop then
+                autoTPLobbyLoop:Disconnect()
+                autoTPLobbyLoop = nil
+            end
+        end
+    end
+})
+
+-- Nút TP Lobby ngay lập tức
+InGameSection:AddButton({
+    Title = "TP Lobby Now",
+    Callback = function()
+        teleportToLobby()
+    end
+})
 
 -- Hàm để kiểm tra trạng thái AutoPlay thực tế trong game
 local function checkActualAutoPlayState()
