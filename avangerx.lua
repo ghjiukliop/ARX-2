@@ -341,7 +341,7 @@ local function CreateLogoUI()
     Button.BackgroundTransparency = 0.2
     Button.Position = UDim2.new(0.9, -25, 0.1, 0)
     Button.Size = UDim2.new(0, 50, 0, 50)
-    Button.Image = "rbxassetid://72693446841279" -- Sử dụng ID của logo HT Hub
+    Button.Image = "rbxassetid://105499082630258" -- Sử dụng ID của logo HT Hub
     Button.ImageTransparency = 0.1
     Button.Active = true
     Button.Draggable = true
