@@ -224,6 +224,7 @@ local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or tru
 local autoRetryLoop = nil
 local autoNextLoop = nil
 local autoVoteLoop = nil
+local removeAnimationLoop = nil
 
 -- Biến lưu trạng thái Update Units
 local autoUpdateEnabled = ConfigSystem.CurrentConfig.AutoUpdate or false
@@ -2478,12 +2479,16 @@ spawn(function()
     end
 end)
 
--- Hàm để xóa animation
+-- Hàm để xóa animations
 local function removeAnimations()
+    if not isPlayerInMap() then
+        return false
+    end
+    
     local success, err = pcall(function()
         -- Xóa RewardsUI từ PlayerGui
         local player = game:GetService("Players").LocalPlayer
-        if player and player:FindFirstChild("PlayerGui") then
+        if player and player.PlayerGui then
             local rewardsUI = player.PlayerGui:FindFirstChild("RewardsUI")
             if rewardsUI then
                 rewardsUI:Destroy()
@@ -2491,33 +2496,30 @@ local function removeAnimations()
             end
         end
         
-        -- Xóa UIS từ ReplicatedStorage
-        local replicatedStorage = game:GetService("ReplicatedStorage")
-        if replicatedStorage then
-            local uis = replicatedStorage:FindFirstChild("UIS")
-            if uis then
-                uis:Destroy()
-                print("Đã xóa ReplicatedStorage.UIS")
-            end
+        -- Xóa UIS.Packages từ ReplicatedStorage
+        local packages = game:GetService("ReplicatedStorage"):FindFirstChild("UIS")
+        if packages and packages:FindFirstChild("Packages") then
+            packages.Packages:Destroy()
+            print("Đã xóa ReplicatedStorage.UIS.Packages")
         end
         
         -- Xóa RewardsUI từ StarterGui
-        local starterGui = game:GetService("StarterGui")
-        if starterGui then
-            local rewardsUI = starterGui:FindFirstChild("RewardsUI")
-            if rewardsUI then
-                rewardsUI:Destroy()
-                print("Đã xóa StarterGui.RewardsUI")
-            end
+        local starterRewardsUI = game:GetService("StarterGui"):FindFirstChild("RewardsUI")
+        if starterRewardsUI then
+            starterRewardsUI:Destroy()
+            print("Đã xóa StarterGui.RewardsUI")
         end
     end)
     
     if not success then
-        warn("Lỗi khi xóa animation: " .. tostring(err))
+        warn("Lỗi khi xóa animations: " .. tostring(err))
+        return false
     end
+    
+    return true
 end
 
--- Toggle Remove Animation
+-- Thêm Toggle Remove Animation
 InGameSection:AddToggle("RemoveAnimationToggle", {
     Title = "Remove Animation",
     Default = ConfigSystem.CurrentConfig.RemoveAnimation or true,
@@ -2529,12 +2531,31 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
         if Value then
             Fluent:Notify({
                 Title = "Remove Animation",
-                Content = "Remove Animation đã được bật, đang xóa các animation",
+                Content = "Remove Animation đã được bật",
                 Duration = 2
             })
             
-            -- Xóa animation ngay lập tức
-            removeAnimations()
+            -- Hủy vòng lặp cũ nếu có
+            if removeAnimationLoop then
+                removeAnimationLoop:Disconnect()
+                removeAnimationLoop = nil
+            end
+            
+            -- Thử xóa animations ngay lập tức nếu đang trong map
+            if isPlayerInMap() then
+                removeAnimations()
+            else
+                print("Không ở trong map, sẽ xóa animations khi vào map")
+            end
+            
+            -- Tạo vòng lặp mới để xóa animations định kỳ
+            spawn(function()
+                while removeAnimationEnabled and wait(5) do
+                    if isPlayerInMap() then
+                        removeAnimations()
+                    end
+                end
+            end)
         else
             Fluent:Notify({
                 Title = "Remove Animation",
@@ -2542,22 +2563,29 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
                 Duration = 2
             })
             
-            -- Thông báo cần restart để khôi phục animation
-            Fluent:Notify({
-                Title = "Thông báo",
-                Content = "Bạn cần khởi động lại game để khôi phục animation",
-                Duration = 3
-            })
+            -- Hủy vòng lặp nếu có
+            if removeAnimationLoop then
+                removeAnimationLoop:Disconnect()
+                removeAnimationLoop = nil
+            end
         end
     end
 })
 
--- Tự động xóa animation khi khởi động nếu tính năng được bật
+-- Tự động xóa animations khi khởi động script nếu tính năng được bật và đang ở trong map
 spawn(function()
-    wait(2) -- Đợi game load
+    wait(3) -- Đợi game load
     
-    if removeAnimationEnabled then
+    if removeAnimationEnabled and isPlayerInMap() then
         removeAnimations()
-        print("Đã kích hoạt Remove Animation")
+        
+        -- Tạo vòng lặp để tiếp tục xóa animations định kỳ
+        spawn(function()
+            while removeAnimationEnabled and wait(5) do
+                if isPlayerInMap() then
+                    removeAnimations()
+                end
+            end
+        end)
     end
 end)
