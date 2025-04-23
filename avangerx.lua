@@ -2131,8 +2131,8 @@ InGameSection:AddToggle("AutoVoteToggle", {
             
             -- Tạo vòng lặp mới với 15 giây delay trước khi bắt đầu
             spawn(function()
-                -- Chờ 15 giây trước khi bắt đầu Auto Vote
-                wait(15)
+                -- Chờ 1 giây trước khi bắt đầu Auto Vote
+                wait(1)
                 
                 -- Kiểm tra lại nếu toggle vẫn được bật sau khi đợi
                 if autoVoteEnabled then
