@@ -142,7 +142,10 @@ ConfigSystem.DefaultConfig = {
     
     -- Cài đặt Auto TP Lobby
     AutoTPLobby = false,
-    AutoTPLobbyDelay = 10 -- Mặc định 10 phút
+    AutoTPLobbyDelay = 10, -- Mặc định 10 phút
+    
+    -- Cài đặt Auto Scan Units
+    AutoScanUnits = true -- Mặc định bật
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -2241,29 +2244,62 @@ end
 -- Thêm section Units Update trong tab In-Game
 local UnitsUpdateSection = InGameTab:AddSection("Units Update")
 
--- Nút Scan Units
-UnitsUpdateSection:AddButton({
-    Title = "Scan Units",
-    Callback = function()
-        local success = scanUnits()
+-- Toggle Auto Scan Units
+UnitsUpdateSection:AddToggle("AutoScanUnitsToggle", {
+    Title = "Auto Scan Units",
+    Default = autoScanUnitsEnabled,
+    Callback = function(Value)
+        autoScanUnitsEnabled = Value
+        ConfigSystem.CurrentConfig.AutoScanUnits = Value
+        ConfigSystem.SaveConfig()
         
-        if success then
-            local unitInfo = "Phát hiện " .. #unitSlots .. " unit:\n"
-            for i, unit in ipairs(unitSlots) do
-                unitInfo = unitInfo .. "Slot " .. i .. ": " .. unit.Name .. "\n"
-            end
-            
+        if Value then
             Fluent:Notify({
-                Title = "Scan Units",
-                Content = unitInfo,
-                Duration = 5
-            })
-        else
-            Fluent:Notify({
-                Title = "Scan Units",
-                Content = "Không tìm thấy unit nào. Hãy đảm bảo bạn đang ở trong map.",
+                Title = "Auto Scan Units",
+                Content = "Auto Scan Units đã được bật, sẽ tự động scan mỗi 3 giây khi ở trong map",
                 Duration = 3
             })
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoScanUnitsLoop then
+                autoScanUnitsLoop:Disconnect()
+                autoScanUnitsLoop = nil
+            end
+            
+            -- Scan ngay lập tức nếu đang trong map
+            if isPlayerInMap() then
+                local success = scanUnits()
+                if success then
+                    local unitInfo = "Phát hiện " .. #unitSlots .. " unit"
+                    print(unitInfo)
+                end
+            end
+            
+            -- Tạo vòng lặp mới để scan mỗi 3 giây
+            spawn(function()
+                while autoScanUnitsEnabled and wait(3) do
+                    if isPlayerInMap() then
+                        local success = scanUnits()
+                        if success then
+                            print("Auto Scan: Phát hiện " .. #unitSlots .. " unit")
+                        end
+                    else
+                        print("Auto Scan: Không ở trong map, đợi đến khi vào map")
+                    end
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto Scan Units",
+                Content = "Auto Scan Units đã được tắt",
+                Duration = 3
+            })
+            
+            -- Hủy vòng lặp nếu có
+            if autoScanUnitsLoop then
+                autoScanUnitsLoop:Disconnect()
+                autoScanUnitsLoop = nil
+            end
         end
     end
 })
@@ -2316,26 +2352,9 @@ UnitsUpdateSection:AddToggle("AutoUpdateToggle", {
                 autoUpdateLoop = nil
             end
             
-            -- Tạo vòng lặp mới ngay lập tức và chạy mỗi 3 giây
+            -- Tạo vòng lặp mới
             spawn(function()
-                -- Thực hiện update ngay lập tức một lần
-                if isPlayerInMap() then
-                    -- Lặp qua từng slot và nâng cấp theo cấp độ đã chọn
-                    for i = 1, 6 do
-                        if unitSlots[i] and unitSlotLevels[i] > 0 then
-                            for j = 1, unitSlotLevels[i] do
-                                upgradeUnit(unitSlots[i])
-                                wait(0.1) -- Chờ một chút giữa các lần nâng cấp
-                            end
-                        end
-                    end
-                else
-                    -- Người chơi không ở trong map, thử scan lại
-                    scanUnits()
-                end
-                
-                -- Tiếp tục vòng lặp mỗi 3 giây
-                while autoUpdateEnabled and wait(3) do -- Cập nhật mỗi 3 giây
+                while autoUpdateEnabled and wait(2) do -- Cập nhật mỗi 2 giây
                     -- Kiểm tra xem có trong map không
                     if isPlayerInMap() then
                         -- Lặp qua từng slot và nâng cấp theo cấp độ đã chọn
@@ -2394,22 +2413,9 @@ UnitsUpdateSection:AddToggle("AutoUpdateRandomToggle", {
                 autoUpdateRandomLoop = nil
             end
             
-            -- Tạo vòng lặp mới ngay lập tức và chạy mỗi 3 giây
+            -- Tạo vòng lặp mới
             spawn(function()
-                -- Thực hiện update ngẫu nhiên ngay lập tức một lần
-                if isPlayerInMap() and #unitSlots > 0 then
-                    -- Chọn ngẫu nhiên một slot để nâng cấp
-                    local randomIndex = math.random(1, #unitSlots)
-                    if unitSlots[randomIndex] then
-                        upgradeUnit(unitSlots[randomIndex])
-                    end
-                else
-                    -- Người chơi không ở trong map, thử scan lại
-                    scanUnits()
-                end
-                
-                -- Tiếp tục vòng lặp mỗi 3 giây
-                while autoUpdateRandomEnabled and wait(3) do -- Cập nhật mỗi 3 giây
+                while autoUpdateRandomEnabled and wait(2) do -- Cập nhật mỗi 2 giây
                     -- Kiểm tra xem có trong map không
                     if isPlayerInMap() and #unitSlots > 0 then
                         -- Chọn ngẫu nhiên một slot để nâng cấp
@@ -2438,33 +2444,6 @@ UnitsUpdateSection:AddToggle("AutoUpdateRandomToggle", {
         end
     end
 })
-
--- Tự động scan unit khi bắt đầu
-spawn(function()
-    wait(5) -- Đợi 5 giây để game load
-    scanUnits()
-end)
-
--- Tự động cập nhật trạng thái từ game khi khởi động
-spawn(function()
-    wait(3) -- Đợi game load
-    local actualState = checkActualAutoPlayState()
-    
-    -- Cập nhật cấu hình nếu trạng thái thực tế khác với cấu hình
-    if autoPlayEnabled ~= actualState then
-        autoPlayEnabled = actualState
-        ConfigSystem.CurrentConfig.AutoPlay = actualState
-        ConfigSystem.SaveConfig()
-        
-        -- Cập nhật UI nếu cần
-        local autoPlayToggle = InGameSection:GetComponent("AutoPlayToggle")
-        if autoPlayToggle and autoPlayToggle.Set then
-            autoPlayToggle:Set(actualState)
-        end
-        
-        print("Đã cập nhật trạng thái Auto Play từ game: " .. (actualState and "bật" or "tắt"))
-    end
-end)
 
 -- Hàm để kiểm tra trạng thái AFKWorld
 local function checkAFKWorldState()
@@ -2726,10 +2705,10 @@ local function removeAnimations()
     return true
 end
 
--- Toggle Remove Animation
+-- Thêm Toggle Remove Animation
 InGameSection:AddToggle("RemoveAnimationToggle", {
     Title = "Remove Animation",
-    Default = ConfigSystem.CurrentConfig.RemoveAnimation or false, -- Thay đổi từ true thành false để mặc định là tắt
+    Default = ConfigSystem.CurrentConfig.RemoveAnimation or true,
     Callback = function(Value)
         removeAnimationEnabled = Value
         ConfigSystem.CurrentConfig.RemoveAnimation = Value
@@ -2965,3 +2944,48 @@ MerchantSection:AddToggle("AutoMerchantBuyToggle", {
         end
     end
 })
+
+-- Biến lưu trạng thái Auto Scan Units
+local autoScanUnitsEnabled = ConfigSystem.CurrentConfig.AutoScanUnits or true
+local autoScanUnitsLoop = nil
+
+-- Tự động scan unit khi bắt đầu
+spawn(function()
+    wait(5) -- Đợi 5 giây để game load
+    scanUnits()
+    
+    -- Bắt đầu vòng lặp auto scan nếu đã bật
+    if autoScanUnitsEnabled then
+        spawn(function()
+            while autoScanUnitsEnabled and wait(3) do
+                if isPlayerInMap() then
+                    local success = scanUnits()
+                    if success then
+                        print("Auto Scan: Phát hiện " .. #unitSlots .. " unit")
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Tự động cập nhật trạng thái từ game khi khởi động
+spawn(function()
+    wait(3) -- Đợi game load
+    local actualState = checkActualAutoPlayState()
+    
+    -- Cập nhật cấu hình nếu trạng thái thực tế khác với cấu hình
+    if autoPlayEnabled ~= actualState then
+        autoPlayEnabled = actualState
+        ConfigSystem.CurrentConfig.AutoPlay = actualState
+        ConfigSystem.SaveConfig()
+        
+        -- Cập nhật UI nếu cần
+        local autoPlayToggle = InGameSection:GetComponent("AutoPlayToggle")
+        if autoPlayToggle and autoPlayToggle.Set then
+            autoPlayToggle:Set(actualState)
+        end
+        
+        print("Đã cập nhật trạng thái Auto Play từ game: " .. (actualState and "bật" or "tắt"))
+    end
+end)
