@@ -1436,39 +1436,6 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                     Content = "Đang ở trong map, Auto Join Ranger sẽ hoạt động khi bạn rời khỏi map",
                     Duration = 3
                 })
-                
-                -- Tạo vòng lặp kiểm tra folder EnemyT khi ở trong map
-                spawn(function()
-                    while autoJoinRangerEnabled and wait(5) do -- Kiểm tra mỗi 5 giây
-                        if isPlayerInMap() then
-                            -- Kiểm tra folder EnemyT có rỗng không
-                            local workspace = game:GetService("Workspace")
-                            local agent = workspace:FindFirstChild("Agent")
-                            
-                            if agent then
-                                local enemyT = agent:FindFirstChild("EnemyT")
-                                
-                                if enemyT and #enemyT:GetChildren() == 0 then
-                                    print("Folder EnemyT rỗng, chờ 15 giây để restart map")
-                                    
-                                    -- Chờ 15 giây trước khi restart map
-                                    wait(15)
-                                    
-                                    -- Kiểm tra lại sau 15 giây
-                                    if autoJoinRangerEnabled and isPlayerInMap() and #enemyT:GetChildren() == 0 then
-                                        -- Restart map bằng cách teleport về chính map đó
-                                        local Players = game:GetService("Players")
-                                        local TeleportService = game:GetService("TeleportService")
-                                        
-                                        for _, player in pairs(Players:GetPlayers()) do
-                                            TeleportService:Teleport(game.PlaceId, player)
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end)
             else
                 Fluent:Notify({
                     Title = "Auto Join Ranger Stage",
@@ -1510,6 +1477,118 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 Content = "Auto Join Ranger Stage đã được tắt",
                 Duration = 3
             })
+        end
+    end
+})
+
+-- Biến lưu trạng thái Auto Leave
+local autoLeaveEnabled = ConfigSystem.CurrentConfig.AutoLeave or false
+local autoLeaveLoop = nil
+
+-- Hàm teleport về lobby (dùng cho Auto Leave)
+local function leaveMap()
+    local success, err = pcall(function()
+        local Players = game:GetService("Players")
+        local TeleportService = game:GetService("TeleportService")
+        
+        -- Hiển thị thông báo trước khi teleport
+        Fluent:Notify({
+            Title = "Auto Leave",
+            Content = "Không tìm thấy kẻ địch trong 10 giây, đang teleport về lobby...",
+            Duration = 3
+        })
+        
+        -- Thực hiện teleport tất cả người chơi
+        for _, player in pairs(Players:GetPlayers()) do
+            TeleportService:Teleport(game.PlaceId, player)
+        end
+    end)
+    
+    if not success then
+        warn("Lỗi khi teleport về lobby: " .. tostring(err))
+    end
+end
+
+-- Hàm kiểm tra EnemyT folder
+local function checkEnemyFolder()
+    local success, isEmpty = pcall(function()
+        local enemyFolder = workspace.Agent.EnemyT
+        if not enemyFolder then
+            return true -- Nếu không tìm thấy folder, coi như trống
+        end
+        
+        -- Kiểm tra folder có trống không
+        return #enemyFolder:GetChildren() == 0
+    end)
+    
+    if not success then
+        warn("Lỗi khi kiểm tra EnemyT folder: " .. tostring(isEmpty))
+        return false
+    end
+    
+    return isEmpty
+end
+
+-- Toggle Auto Leave
+RangerSection:AddToggle("AutoLeaveToggle", {
+    Title = "Auto Leave",
+    Default = ConfigSystem.CurrentConfig.AutoLeave or false,
+    Callback = function(Value)
+        autoLeaveEnabled = Value
+        ConfigSystem.CurrentConfig.AutoLeave = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            Fluent:Notify({
+                Title = "Auto Leave",
+                Content = "Auto Leave đã được bật. Sẽ tự động rời map nếu không có kẻ địch trong 10 giây",
+                Duration = 3
+            })
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoLeaveLoop then
+                autoLeaveLoop:Disconnect()
+                autoLeaveLoop = nil
+            end
+            
+            -- Tạo vòng lặp mới để kiểm tra EnemyT folder
+            spawn(function()
+                while autoLeaveEnabled and wait(1) do
+                    -- Chỉ kiểm tra nếu đang ở trong map
+                    if isPlayerInMap() then
+                        local emptyTime = 0
+                        local isEmpty = checkEnemyFolder()
+                        
+                        if isEmpty then
+                            -- Bắt đầu đếm thời gian folder trống
+                            while isEmpty and emptyTime < 10 and autoLeaveEnabled do
+                                emptyTime = emptyTime + 1
+                                print("EnemyT folder trống: " .. emptyTime .. "/10 giây")
+                                wait(1)
+                                isEmpty = checkEnemyFolder()
+                            end
+                            
+                            -- Nếu folder vẫn trống sau 10 giây và Auto Leave vẫn được bật, teleport về lobby
+                            if emptyTime >= 10 and autoLeaveEnabled then
+                                leaveMap()
+                                break -- Thoát khỏi vòng lặp vì đã teleport
+                            end
+                        end
+                    end
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto Leave",
+                Content = "Auto Leave đã được tắt",
+                Duration = 3
+            })
+            
+            -- Hủy vòng lặp nếu có
+            if autoLeaveLoop then
+                autoLeaveLoop:Disconnect()
+                autoLeaveLoop = nil
+            end
         end
     end
 })
