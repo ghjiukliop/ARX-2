@@ -2643,16 +2643,9 @@ local function removeAnimations()
             end
         end
         
-        -- Xóa UIS.Packages từ ReplicatedStorage
+        -- Xóa UIS.RewardsUI từ ReplicatedStorage (không xóa Packages nữa)
         local uis = game:GetService("ReplicatedStorage"):FindFirstChild("UIS")
         if uis then
-            -- Xóa Packages
-            local packages = uis:FindFirstChild("Packages")
-            if packages then
-                packages:Destroy()
-                print("Đã xóa ReplicatedStorage.UIS.Packages")
-            end
-            
             -- Xóa RewardsUI
             local rewardsUI = uis:FindFirstChild("RewardsUI")
             if rewardsUI then
