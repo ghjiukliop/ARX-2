@@ -2114,8 +2114,8 @@ InGameSection:AddToggle("AutoVoteToggle", {
         if Value then
             Fluent:Notify({
                 Title = "Auto Vote",
-                Content = "Auto Vote đã được bật",
-                Duration = 2
+                Content = "Auto Vote đã được bật, sẽ bắt đầu sau 15 giây",
+                Duration = 3
             })
             
             -- Hủy vòng lặp cũ nếu có
@@ -2124,10 +2124,24 @@ InGameSection:AddToggle("AutoVoteToggle", {
                 autoVoteLoop = nil
             end
             
-            -- Tạo vòng lặp mới
+            -- Tạo vòng lặp mới với 15 giây delay trước khi bắt đầu
             spawn(function()
-                while autoVoteEnabled and wait(3) do -- Gửi yêu cầu mỗi 3 giây
-                    toggleAutoVote()
+                -- Chờ 15 giây trước khi bắt đầu Auto Vote
+                wait(15)
+                
+                -- Kiểm tra lại nếu toggle vẫn được bật sau khi đợi
+                if autoVoteEnabled then
+                    -- Thông báo bắt đầu
+                    Fluent:Notify({
+                        Title = "Auto Vote",
+                        Content = "Auto Vote bắt đầu hoạt động",
+                        Duration = 2
+                    })
+                    
+                    -- Bắt đầu vòng lặp sau khi delay
+                    while autoVoteEnabled and wait(3) do -- Gửi yêu cầu mỗi 3 giây
+                        toggleAutoVote()
+                    end
                 end
             end)
         else
@@ -2643,9 +2657,16 @@ local function removeAnimations()
             end
         end
         
-        -- Xóa UIS.RewardsUI từ ReplicatedStorage (không xóa Packages nữa)
+        -- Xóa UIS.Packages từ ReplicatedStorage
         local uis = game:GetService("ReplicatedStorage"):FindFirstChild("UIS")
         if uis then
+            -- Xóa Packages
+            local packages = uis:FindFirstChild("Packages")
+            if packages then
+                packages:Destroy()
+                print("Đã xóa ReplicatedStorage.UIS.Packages")
+            end
+            
             -- Xóa RewardsUI
             local rewardsUI = uis:FindFirstChild("RewardsUI")
             if rewardsUI then
