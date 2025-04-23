@@ -1372,6 +1372,52 @@ RangerSection:AddDropdown("RangerMapDropdown", {
     end
 })
 
+-- Hàm để lấy act đầu tiên được chọn từ danh sách
+local function getFirstSelectedAct()
+    -- Kiểm tra xem có act nào được chọn không
+    local hasSelection = false
+    for act, selected in pairs(selectedActs) do
+        if selected then
+            hasSelection = true
+            break
+        end
+    end
+    
+    -- Nếu không có act nào được chọn, mặc định là RangerStage1
+    if not hasSelection then
+        selectedActs["RangerStage1"] = true
+        return "RangerStage1"
+    end
+    
+    -- Lấy act đầu tiên được chọn
+    for act, selected in pairs(selectedActs) do
+        if selected then
+            return act
+        end
+    end
+    
+    -- Mặc định nếu không tìm thấy (để an toàn)
+    return "RangerStage1"
+end
+
+-- Hàm để lấy tất cả các act được chọn
+local function getAllSelectedActs()
+    local acts = {}
+    for act, selected in pairs(selectedActs) do
+        if selected then
+            table.insert(acts, act)
+        end
+    end
+    
+    -- Nếu không có act nào được chọn, thêm RangerStage1 làm mặc định
+    if #acts == 0 then
+        selectedActs["RangerStage1"] = true
+        table.insert(acts, "RangerStage1")
+    end
+    
+    return acts
+end
+
 -- Dropdown để chọn Act
 RangerSection:AddDropdown("ActDropdown", {
     Title = "Choose Act",
@@ -1379,13 +1425,31 @@ RangerSection:AddDropdown("ActDropdown", {
     Multi = true,
     Default = selectedActs,
     Callback = function(Values)
+        -- Cập nhật selectedActs
         selectedActs = Values
         ConfigSystem.CurrentConfig.SelectedActs = Values
         ConfigSystem.SaveConfig()
         
+        -- Kiểm tra xem có act nào được chọn hay không
+        local hasAnySelection = false
+        for _, selected in pairs(Values) do
+            if selected then
+                hasAnySelection = true
+                break
+            end
+        end
+        
+        -- Nếu không có act nào được chọn, đặt RangerStage1 làm mặc định
+        if not hasAnySelection then
+            selectedActs["RangerStage1"] = true
+            Values["RangerStage1"] = true
+        end
+        
         -- Thay đổi act khi người dùng chọn - sử dụng act đầu tiên để hiển thị
         local firstAct = getFirstSelectedAct()
-        changeAct(selectedRangerMap, firstAct)
+        pcall(function()
+            changeAct(selectedRangerMap, firstAct)
+        end)
         
         -- Hiển thị thông báo về các act đã chọn
         local actsText = ""
@@ -1403,8 +1467,16 @@ RangerSection:AddDropdown("ActDropdown", {
         if count > 0 then
             print("Đã chọn " .. count .. " act: " .. actsText)
         else
-            print("Không có act nào được chọn")
+            print("Không có act nào được chọn, đã tự động chọn RangerStage1")
+            actsText = "RangerStage1"
         end
+        
+        -- Hiển thị thông báo với các act đã chọn
+        Fluent:Notify({
+            Title = "Ranger Stage Acts",
+            Content = "Đã chọn: " .. actsText,
+            Duration = 2
+        })
     end
 })
 
@@ -3329,57 +3401,23 @@ spawn(function()
     end
 end)
 
--- Hàm để lấy act đầu tiên được chọn từ danh sách
-local function getFirstSelectedAct()
-    -- Kiểm tra xem có act nào được chọn không
-    local hasSelection = false
-    for act, selected in pairs(selectedActs) do
-        if selected then
-            hasSelection = true
-            break
-        end
-    end
-    
-    -- Nếu không có act nào được chọn, mặc định là RangerStage1
-    if not hasSelection then
-        return "RangerStage1"
-    end
-    
-    -- Lấy act đầu tiên được chọn
-    for act, selected in pairs(selectedActs) do
-        if selected then
-            return act
-        end
-    end
-    
-    -- Mặc định nếu không tìm thấy (để an toàn)
-    return "RangerStage1"
-end
-
--- Hàm để lấy tất cả các act được chọn
-local function getAllSelectedActs()
-    local acts = {}
-    for act, selected in pairs(selectedActs) do
-        if selected then
-            table.insert(acts, act)
-        end
-    end
-    return acts
-end
-
 -- Hàm để join nhiều acts một cách tuần tự
 local function joinMultipleRangerStages()
     -- Lấy danh sách tất cả các acts được chọn
     local actsToJoin = getAllSelectedActs()
     
-    -- Nếu không có act nào được chọn, thông báo cho người dùng
+    -- Nếu không có act nào được chọn, đặt RangerStage1 làm mặc định
     if #actsToJoin == 0 then
+        selectedActs["RangerStage1"] = true
+        table.insert(actsToJoin, "RangerStage1")
+        ConfigSystem.CurrentConfig.SelectedActs = selectedActs
+        ConfigSystem.SaveConfig()
+        
         Fluent:Notify({
             Title = "Auto Join Ranger Stage",
-            Content = "Không có Ranger Stage nào được chọn",
+            Content = "Không có Ranger Stage nào được chọn, tự động chọn RangerStage1",
             Duration = 3
         })
-        return false
     end
     
     -- Chọn một act ngẫu nhiên từ danh sách
@@ -3450,10 +3488,24 @@ local function joinMultipleRangerStages()
         Event:FireServer("Start")
         
         print("Đã join Ranger Stage: " .. selectedRangerMap .. "_" .. selectedAct)
+        
+        -- Hiển thị thông báo
+        Fluent:Notify({
+            Title = "Ranger Stage",
+            Content = "Đã tham gia " .. selectedAct,
+            Duration = 2
+        })
     end)
     
     if not success then
         warn("Lỗi khi join Ranger Stage: " .. tostring(err))
+        
+        -- Hiển thị thông báo lỗi
+        Fluent:Notify({
+            Title = "Lỗi",
+            Content = "Không thể tham gia Ranger Stage: " .. tostring(err),
+            Duration = 3
+        })
         return false
     end
     
