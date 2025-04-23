@@ -2609,16 +2609,31 @@ local function removeAnimations()
                 rewardsUI:Destroy()
                 print("Đã xóa PlayerGui.RewardsUI")
             end
+            
+            -- Xóa UIS.Packages.Transition từ PlayerGui
+            local uis = player.PlayerGui:FindFirstChild("UIS")
+            if uis then
+                local packages = uis:FindFirstChild("Packages")
+                if packages then
+                    local transition = packages:FindFirstChild("Transition")
+                    if transition then
+                        transition:Destroy()
+                        print("Đã xóa PlayerGui.UIS.Packages.Transition")
+                    end
+                end
+            end
         end
         
-        -- Xóa UIS.Packages từ ReplicatedStorage
+        -- Xóa UIS.Packages.Transition từ ReplicatedStorage
         local uis = game:GetService("ReplicatedStorage"):FindFirstChild("UIS")
         if uis then
-            -- Xóa Packages
             local packages = uis:FindFirstChild("Packages")
             if packages then
-                packages:Destroy()
-                print("Đã xóa ReplicatedStorage.UIS.Packages")
+                local transition = packages:FindFirstChild("Transition")
+                if transition then
+                    transition:Destroy()
+                    print("Đã xóa ReplicatedStorage.UIS.Packages.Transition")
+                end
             end
             
             -- Xóa RewardsUI
@@ -2634,6 +2649,19 @@ local function removeAnimations()
         if starterRewardsUI then
             starterRewardsUI:Destroy()
             print("Đã xóa StarterGui.RewardsUI")
+        end
+        
+        -- Xóa UIS.Packages.Transition từ StarterGui
+        local uis = game:GetService("StarterGui"):FindFirstChild("UIS")
+        if uis then
+            local packages = uis:FindFirstChild("Packages")
+            if packages then
+                local transition = packages:FindFirstChild("Transition")
+                if transition then
+                    transition:Destroy()
+                    print("Đã xóa StarterGui.UIS.Packages.Transition")
+                end
+            end
         end
     end)
     
