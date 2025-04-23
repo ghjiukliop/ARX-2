@@ -149,7 +149,10 @@ ConfigSystem.DefaultConfig = {
     
     -- Cài đặt Easter Egg
     AutoJoinEasterEgg = false,
-    EasterEggTimeDelay = 5
+    EasterEggTimeDelay = 5,
+    
+    -- Cài đặt Anti AFK
+    AntiAFK = true -- Mặc định bật
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -230,7 +233,7 @@ local autoJoinMapLoop = nil
 -- Biến lưu trạng thái Ranger Stage
 local selectedRangerMap = ConfigSystem.CurrentConfig.SelectedRangerMap or "OnePiece"
 local selectedRangerDisplayMap = reverseMapNameMapping[selectedRangerMap] or "Voocha Village"
-local selectedAct = ConfigSystem.CurrentConfig.SelectedAct or "RangerStage1"
+local selectedActs = ConfigSystem.CurrentConfig.SelectedActs or {["RangerStage1"] = true}
 local rangerFriendOnly = ConfigSystem.CurrentConfig.RangerFriendOnly or false
 local autoJoinRangerEnabled = ConfigSystem.CurrentConfig.AutoJoinRanger or false
 local autoJoinRangerLoop = nil
@@ -1163,7 +1166,7 @@ else
         spawn(function()
             wait(rangerTimeDelay) -- Chờ theo time delay đã đặt
             if autoJoinRangerEnabled and not isPlayerInMap() then
-                joinRangerStage()
+                joinMultipleRangerStages()
             end
         end)
     end
@@ -1312,7 +1315,7 @@ local function joinRangerStage()
         local args2 = {
             [1] = "Change-Chapter",
             [2] = {
-                ["Chapter"] = selectedRangerMap .. "_" .. selectedAct
+                ["Chapter"] = selectedRangerMap .. "_" .. selectedActs.RangerStage1
             }
         }
         Event:FireServer(unpack(args2))
@@ -1325,7 +1328,7 @@ local function joinRangerStage()
         -- 6. Start
         Event:FireServer("Start")
         
-        print("Đã join Ranger Stage: " .. selectedRangerMap .. "_" .. selectedAct)
+        print("Đã join Ranger Stage: " .. selectedRangerMap .. "_" .. selectedActs.RangerStage1)
     end)
     
     if not success then
@@ -1373,16 +1376,35 @@ RangerSection:AddDropdown("RangerMapDropdown", {
 RangerSection:AddDropdown("ActDropdown", {
     Title = "Choose Act",
     Values = {"RangerStage1", "RangerStage2", "RangerStage3"},
-    Multi = false,
-    Default = ConfigSystem.CurrentConfig.SelectedAct or "RangerStage1",
-    Callback = function(Value)
-        selectedAct = Value
-        ConfigSystem.CurrentConfig.SelectedAct = Value
+    Multi = true,
+    Default = selectedActs,
+    Callback = function(Values)
+        selectedActs = Values
+        ConfigSystem.CurrentConfig.SelectedActs = Values
         ConfigSystem.SaveConfig()
         
-        -- Thay đổi act khi người dùng chọn
-        changeAct(selectedRangerMap, Value)
-        print("Đã chọn act: " .. Value)
+        -- Thay đổi act khi người dùng chọn - sử dụng act đầu tiên để hiển thị
+        local firstAct = getFirstSelectedAct()
+        changeAct(selectedRangerMap, firstAct)
+        
+        -- Hiển thị thông báo về các act đã chọn
+        local actsText = ""
+        local count = 0
+        for act, selected in pairs(Values) do
+            if selected then
+                if count > 0 then
+                    actsText = actsText .. ", "
+                end
+                actsText = actsText .. act
+                count = count + 1
+            end
+        end
+        
+        if count > 0 then
+            print("Đã chọn " .. count .. " act: " .. actsText)
+        else
+            print("Không có act nào được chọn")
+        end
     end
 })
 
@@ -1457,7 +1479,7 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 spawn(function()
                     wait(rangerTimeDelay)
                     if autoJoinRangerEnabled and not isPlayerInMap() then
-                        joinRangerStage()
+                        joinMultipleRangerStages()
                     end
                 end)
             end
@@ -1473,7 +1495,7 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                         
                         -- Kiểm tra lại sau khi delay
                         if autoJoinRangerEnabled and not isPlayerInMap() then
-                            joinRangerStage()
+                            joinMultipleRangerStages()
                         end
                     else
                         -- Người chơi đang ở trong map, không cần join
@@ -2552,6 +2574,65 @@ end
 -- Thêm section AFK vào tab Settings
 local AFKSection = SettingsTab:AddSection("AFK Settings")
 
+-- Biến lưu trạng thái Anti AFK
+local antiAFKEnabled = ConfigSystem.CurrentConfig.AntiAFK or true -- Mặc định bật
+local antiAFKConnection = nil -- Kết nối sự kiện
+
+-- Hàm xử lý Anti AFK
+local function setupAntiAFK()
+    local VirtualUser = game:GetService("VirtualUser")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    -- Ngắt kết nối cũ nếu có
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+        antiAFKConnection = nil
+    end
+    
+    -- Tạo kết nối mới nếu được bật
+    if antiAFKEnabled then
+        antiAFKConnection = LocalPlayer.Idled:Connect(function()
+            VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            print("Anti AFK đã kích hoạt")
+        end)
+        print("Đã thiết lập Anti AFK")
+    end
+end
+
+-- Toggle Anti AFK
+AFKSection:AddToggle("AntiAFKToggle", {
+    Title = "Anti AFK",
+    Default = antiAFKEnabled,
+    Callback = function(Value)
+        antiAFKEnabled = Value
+        ConfigSystem.CurrentConfig.AntiAFK = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            Fluent:Notify({
+                Title = "Anti AFK",
+                Content = "Anti AFK đã được bật",
+                Duration = 2
+            })
+            setupAntiAFK()
+        else
+            Fluent:Notify({
+                Title = "Anti AFK",
+                Content = "Anti AFK đã được tắt",
+                Duration = 2
+            })
+            -- Ngắt kết nối nếu có
+            if antiAFKConnection then
+                antiAFKConnection:Disconnect()
+                antiAFKConnection = nil
+            end
+        end
+    end
+})
+
 -- Toggle Auto Join AFK
 AFKSection:AddToggle("AutoJoinAFKToggle", {
     Title = "Auto Join AFK",
@@ -3235,3 +3316,146 @@ EasterEggSection:AddButton({
         joinEasterEggEvent()
     end
 })
+
+-- Khởi tạo Anti AFK khi script khởi động
+spawn(function()
+    -- Đợi một chút để script khởi động hoàn tất
+    wait(3)
+    
+    -- Nếu Anti AFK được bật, thiết lập nó
+    if antiAFKEnabled then
+        setupAntiAFK()
+        print("Đã tự động thiết lập Anti AFK khi khởi động script")
+    end
+end)
+
+-- Hàm để lấy act đầu tiên được chọn từ danh sách
+local function getFirstSelectedAct()
+    -- Kiểm tra xem có act nào được chọn không
+    local hasSelection = false
+    for act, selected in pairs(selectedActs) do
+        if selected then
+            hasSelection = true
+            break
+        end
+    end
+    
+    -- Nếu không có act nào được chọn, mặc định là RangerStage1
+    if not hasSelection then
+        return "RangerStage1"
+    end
+    
+    -- Lấy act đầu tiên được chọn
+    for act, selected in pairs(selectedActs) do
+        if selected then
+            return act
+        end
+    end
+    
+    -- Mặc định nếu không tìm thấy (để an toàn)
+    return "RangerStage1"
+end
+
+-- Hàm để lấy tất cả các act được chọn
+local function getAllSelectedActs()
+    local acts = {}
+    for act, selected in pairs(selectedActs) do
+        if selected then
+            table.insert(acts, act)
+        end
+    end
+    return acts
+end
+
+-- Hàm để join nhiều acts một cách tuần tự
+local function joinMultipleRangerStages()
+    -- Lấy danh sách tất cả các acts được chọn
+    local actsToJoin = getAllSelectedActs()
+    
+    -- Nếu không có act nào được chọn, thông báo cho người dùng
+    if #actsToJoin == 0 then
+        Fluent:Notify({
+            Title = "Auto Join Ranger Stage",
+            Content = "Không có Ranger Stage nào được chọn",
+            Duration = 3
+        })
+        return false
+    end
+    
+    -- Chọn một act ngẫu nhiên từ danh sách
+    local randomIndex = math.random(1, #actsToJoin)
+    local selectedAct = actsToJoin[randomIndex]
+    
+    -- Kiểm tra xem người chơi đã ở trong map chưa
+    if isPlayerInMap() then
+        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
+        return false
+    end
+    
+    local success, err = pcall(function()
+        -- Lấy Event
+        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 2)
+        
+        if not Event then
+            warn("Không tìm thấy Event để join Ranger Stage")
+            return
+        end
+        
+        -- 1. Create
+        Event:FireServer("Create")
+        wait(0.5)
+        
+        -- 2. Change Mode to Ranger Stage
+        local modeArgs = {
+            [1] = "Change-Mode",
+            [2] = {
+                ["Mode"] = "Ranger Stage"
+            }
+        }
+        Event:FireServer(unpack(modeArgs))
+        wait(0.5)
+        
+        -- 3. Friend Only (nếu được bật)
+        if rangerFriendOnly then
+            Event:FireServer("Change-FriendOnly")
+            wait(0.5)
+        end
+        
+        -- 4. Chọn Map và Act
+        -- 4.1 Đổi Map
+        local args1 = {
+            [1] = "Change-World",
+            [2] = {
+                ["World"] = selectedRangerMap
+            }
+        }
+        Event:FireServer(unpack(args1))
+        wait(0.5)
+        
+        -- 4.2 Đổi Act
+        local args2 = {
+            [1] = "Change-Chapter",
+            [2] = {
+                ["Chapter"] = selectedRangerMap .. "_" .. selectedAct
+            }
+        }
+        Event:FireServer(unpack(args2))
+        wait(0.5)
+        
+        -- 5. Submit
+        Event:FireServer("Submit")
+        wait(1)
+        
+        -- 6. Start
+        Event:FireServer("Start")
+        
+        print("Đã join Ranger Stage: " .. selectedRangerMap .. "_" .. selectedAct)
+    end)
+    
+    if not success then
+        warn("Lỗi khi join Ranger Stage: " .. tostring(err))
+        return false
+    end
+    
+    return true
+end
