@@ -2312,19 +2312,29 @@ UnitsUpdateSection:AddToggle("AutoUpdateToggle", {
             
             -- Hủy vòng lặp cũ nếu có
             if autoUpdateLoop then
-                autoUpdateLoop:Disconnect()
+                pcall(function()
+                    autoUpdateLoop:Disconnect()
+                end)
                 autoUpdateLoop = nil
             end
             
-            -- Tạo vòng lặp mới
-            spawn(function()
-                while autoUpdateEnabled and wait(2) do -- Cập nhật mỗi 2 giây
+            -- Tạo vòng lặp mới với cơ chế theo dõi và khôi phục
+            autoUpdateLoop = spawn(function()
+                local updateTime = tick()
+                
+                while autoUpdateEnabled do
                     -- Kiểm tra xem có trong map không
                     if isPlayerInMap() then
+                        -- Scan lại nếu không có units
+                        if #unitSlots == 0 then
+                            scanUnits()
+                        end
+                        
                         -- Lặp qua từng slot và nâng cấp theo cấp độ đã chọn
                         for i = 1, 6 do
-                            if unitSlots[i] and unitSlotLevels[i] > 0 then
+                            if autoUpdateEnabled and unitSlots[i] and unitSlotLevels[i] > 0 then
                                 for j = 1, unitSlotLevels[i] do
+                                    if not autoUpdateEnabled then break end
                                     upgradeUnit(unitSlots[i])
                                     wait(0.1) -- Chờ một chút giữa các lần nâng cấp
                                 end
@@ -2334,6 +2344,14 @@ UnitsUpdateSection:AddToggle("AutoUpdateToggle", {
                         -- Người chơi không ở trong map, thử scan lại
                         scanUnits()
                     end
+                    
+                    -- Ghi log hoạt động để debug
+                    if tick() - updateTime > 10 then
+                        updateTime = tick()
+                        print("Auto Update đang hoạt động...")
+                    end
+                    
+                    wait(2) -- Đợi 2 giây trước khi lặp lại
                 end
             end)
         else
@@ -2345,7 +2363,9 @@ UnitsUpdateSection:AddToggle("AutoUpdateToggle", {
             
             -- Hủy vòng lặp nếu có
             if autoUpdateLoop then
-                autoUpdateLoop:Disconnect()
+                pcall(function()
+                    autoUpdateLoop:Disconnect()
+                end)
                 autoUpdateLoop = nil
             end
         end
@@ -2373,24 +2393,43 @@ UnitsUpdateSection:AddToggle("AutoUpdateRandomToggle", {
             
             -- Hủy vòng lặp cũ nếu có
             if autoUpdateRandomLoop then
-                autoUpdateRandomLoop:Disconnect()
+                pcall(function()
+                    autoUpdateRandomLoop:Disconnect()
+                end)
                 autoUpdateRandomLoop = nil
             end
             
-            -- Tạo vòng lặp mới
-            spawn(function()
-                while autoUpdateRandomEnabled and wait(2) do -- Cập nhật mỗi 2 giây
+            -- Tạo vòng lặp mới với cơ chế theo dõi và khôi phục
+            autoUpdateRandomLoop = spawn(function()
+                local updateTime = tick()
+                
+                while autoUpdateRandomEnabled do
                     -- Kiểm tra xem có trong map không
-                    if isPlayerInMap() and #unitSlots > 0 then
-                        -- Chọn ngẫu nhiên một slot để nâng cấp
-                        local randomIndex = math.random(1, #unitSlots)
-                        if unitSlots[randomIndex] then
-                            upgradeUnit(unitSlots[randomIndex])
+                    if isPlayerInMap() then
+                        -- Scan lại nếu không có units
+                        if #unitSlots == 0 then
+                            scanUnits()
+                        end
+                        
+                        -- Chọn ngẫu nhiên một slot để nâng cấp nếu có unit
+                        if #unitSlots > 0 then
+                            local randomIndex = math.random(1, #unitSlots)
+                            if unitSlots[randomIndex] then
+                                upgradeUnit(unitSlots[randomIndex])
+                            end
                         end
                     else
                         -- Người chơi không ở trong map, thử scan lại
                         scanUnits()
                     end
+                    
+                    -- Ghi log hoạt động để debug
+                    if tick() - updateTime > 10 then
+                        updateTime = tick()
+                        print("Auto Update Random đang hoạt động...")
+                    end
+                    
+                    wait(2) -- Đợi 2 giây trước khi lặp lại
                 end
             end)
         else
@@ -2402,7 +2441,9 @@ UnitsUpdateSection:AddToggle("AutoUpdateRandomToggle", {
             
             -- Hủy vòng lặp nếu có
             if autoUpdateRandomLoop then
-                autoUpdateRandomLoop:Disconnect()
+                pcall(function()
+                    autoUpdateRandomLoop:Disconnect()
+                end)
                 autoUpdateRandomLoop = nil
             end
         end
@@ -2699,7 +2740,7 @@ end
 -- Thêm Toggle Remove Animation
 InGameSection:AddToggle("RemoveAnimationToggle", {
     Title = "Remove Animation",
-    Default = ConfigSystem.CurrentConfig.RemoveAnimation or true,
+    Default = ConfigSystem.CurrentConfig.RemoveAnimation,
     Callback = function(Value)
         removeAnimationEnabled = Value
         ConfigSystem.CurrentConfig.RemoveAnimation = Value
@@ -2714,7 +2755,9 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
             
             -- Hủy vòng lặp cũ nếu có
             if removeAnimationLoop then
-                removeAnimationLoop:Disconnect()
+                pcall(function()
+                    removeAnimationLoop:Disconnect()
+                end)
                 removeAnimationLoop = nil
             end
             
@@ -2726,11 +2769,21 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
             end
             
             -- Tạo vòng lặp mới để xóa animations định kỳ
-            spawn(function()
-                while removeAnimationEnabled and wait(5) do
+            removeAnimationLoop = spawn(function()
+                local checkTime = tick()
+                
+                while removeAnimationEnabled do
                     if isPlayerInMap() then
                         removeAnimations()
                     end
+                    
+                    -- Ghi log hoạt động để debug
+                    if tick() - checkTime > 10 then
+                        checkTime = tick()
+                        print("Remove Animation đang hoạt động...")
+                    end
+                    
+                    wait(5) -- Đợi 5 giây trước khi lặp lại
                 end
             end)
         else
@@ -2742,7 +2795,9 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
             
             -- Hủy vòng lặp nếu có
             if removeAnimationLoop then
-                removeAnimationLoop:Disconnect()
+                pcall(function()
+                    removeAnimationLoop:Disconnect()
+                end)
                 removeAnimationLoop = nil
             end
         end
@@ -2755,15 +2810,6 @@ spawn(function()
     
     if removeAnimationEnabled and isPlayerInMap() then
         removeAnimations()
-        
-        -- Tạo vòng lặp để tiếp tục xóa animations định kỳ
-        spawn(function()
-            while removeAnimationEnabled and wait(5) do
-                if isPlayerInMap() then
-                    removeAnimations()
-                end
-            end
-        end)
     end
 end)
 
@@ -2905,19 +2951,31 @@ MerchantSection:AddToggle("AutoMerchantBuyToggle", {
             
             -- Hủy vòng lặp cũ nếu có
             if autoMerchantBuyLoop then
-                autoMerchantBuyLoop:Disconnect()
+                pcall(function()
+                    autoMerchantBuyLoop:Disconnect()
+                end)
                 autoMerchantBuyLoop = nil
             end
             
             -- Tạo vòng lặp mới để tự động mua
-            spawn(function()
-                while autoMerchantBuyEnabled and wait(2) do -- Mua mỗi 2 giây
+            autoMerchantBuyLoop = spawn(function()
+                local buyTime = tick()
+                
+                while autoMerchantBuyEnabled do
                     for item, isSelected in pairs(selectedMerchantItems) do
-                        if isSelected then
+                        if isSelected and autoMerchantBuyEnabled then
                             buyMerchantItem(item)
                             wait(0.5) -- Chờ 0.5 giây giữa các lần mua
                         end
                     end
+                    
+                    -- Ghi log hoạt động để debug
+                    if tick() - buyTime > 10 then
+                        buyTime = tick()
+                        print("Auto Merchant Buy đang hoạt động...")
+                    end
+                    
+                    wait(2) -- Đợi 2 giây trước khi lặp lại
                 end
             end)
         else
@@ -2929,7 +2987,9 @@ MerchantSection:AddToggle("AutoMerchantBuyToggle", {
             
             -- Hủy vòng lặp nếu có
             if autoMerchantBuyLoop then
-                autoMerchantBuyLoop:Disconnect()
+                pcall(function()
+                    autoMerchantBuyLoop:Disconnect()
+                end)
                 autoMerchantBuyLoop = nil
             end
         end
