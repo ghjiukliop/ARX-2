@@ -242,7 +242,7 @@ local autoPlayEnabled = ConfigSystem.CurrentConfig.AutoPlay or false
 local autoRetryEnabled = ConfigSystem.CurrentConfig.AutoRetry or false
 local autoNextEnabled = ConfigSystem.CurrentConfig.AutoNext or false
 local autoVoteEnabled = ConfigSystem.CurrentConfig.AutoVote or false
-local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or false -- Thay đổi mặc định từ true sang false
+local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or true
 local autoRetryLoop = nil
 local autoNextLoop = nil
 local autoVoteLoop = nil
@@ -2316,10 +2316,11 @@ UnitsUpdateSection:AddToggle("AutoUpdateToggle", {
                 autoUpdateLoop = nil
             end
             
-            -- Tạo vòng lặp mới
-            autoUpdateLoop = spawn(function()
-                -- Thực hiện nâng cấp ngay lập tức khi bật
+            -- Tạo vòng lặp mới ngay lập tức và chạy mỗi 3 giây
+            spawn(function()
+                -- Thực hiện update ngay lập tức một lần
                 if isPlayerInMap() then
+                    -- Lặp qua từng slot và nâng cấp theo cấp độ đã chọn
                     for i = 1, 6 do
                         if unitSlots[i] and unitSlotLevels[i] > 0 then
                             for j = 1, unitSlotLevels[i] do
@@ -2333,8 +2334,8 @@ UnitsUpdateSection:AddToggle("AutoUpdateToggle", {
                     scanUnits()
                 end
                 
-                -- Tiếp tục vòng lặp
-                while autoUpdateEnabled and wait(2) do -- Cập nhật mỗi 2 giây
+                -- Tiếp tục vòng lặp mỗi 3 giây
+                while autoUpdateEnabled and wait(3) do -- Cập nhật mỗi 3 giây
                     -- Kiểm tra xem có trong map không
                     if isPlayerInMap() then
                         -- Lặp qua từng slot và nâng cấp theo cấp độ đã chọn
@@ -2393,10 +2394,11 @@ UnitsUpdateSection:AddToggle("AutoUpdateRandomToggle", {
                 autoUpdateRandomLoop = nil
             end
             
-            -- Tạo vòng lặp mới
-            autoUpdateRandomLoop = spawn(function()
-                -- Thực hiện nâng cấp ngẫu nhiên ngay lập tức khi bật
+            -- Tạo vòng lặp mới ngay lập tức và chạy mỗi 3 giây
+            spawn(function()
+                -- Thực hiện update ngẫu nhiên ngay lập tức một lần
                 if isPlayerInMap() and #unitSlots > 0 then
+                    -- Chọn ngẫu nhiên một slot để nâng cấp
                     local randomIndex = math.random(1, #unitSlots)
                     if unitSlots[randomIndex] then
                         upgradeUnit(unitSlots[randomIndex])
@@ -2406,8 +2408,8 @@ UnitsUpdateSection:AddToggle("AutoUpdateRandomToggle", {
                     scanUnits()
                 end
                 
-                -- Tiếp tục vòng lặp
-                while autoUpdateRandomEnabled and wait(2) do -- Cập nhật mỗi 2 giây
+                -- Tiếp tục vòng lặp mỗi 3 giây
+                while autoUpdateRandomEnabled and wait(3) do -- Cập nhật mỗi 3 giây
                     -- Kiểm tra xem có trong map không
                     if isPlayerInMap() and #unitSlots > 0 then
                         -- Chọn ngẫu nhiên một slot để nâng cấp
@@ -2724,10 +2726,10 @@ local function removeAnimations()
     return true
 end
 
--- Thêm Toggle Remove Animation
+-- Toggle Remove Animation
 InGameSection:AddToggle("RemoveAnimationToggle", {
     Title = "Remove Animation",
-    Default = ConfigSystem.CurrentConfig.RemoveAnimation or false, -- Thay đổi mặc định từ true sang false
+    Default = ConfigSystem.CurrentConfig.RemoveAnimation or false, -- Thay đổi từ true thành false để mặc định là tắt
     Callback = function(Value)
         removeAnimationEnabled = Value
         ConfigSystem.CurrentConfig.RemoveAnimation = Value
@@ -2754,7 +2756,7 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
             end
             
             -- Tạo vòng lặp mới để xóa animations định kỳ
-            removeAnimationLoop = spawn(function()
+            spawn(function()
                 while removeAnimationEnabled and wait(5) do
                     if isPlayerInMap() then
                         removeAnimations()
@@ -2781,20 +2783,17 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
 spawn(function()
     wait(3) -- Đợi game load
     
-    -- Kiểm tra kỹ lưỡng xem tính năng có thực sự được bật hay không
-    if ConfigSystem.CurrentConfig.RemoveAnimation == true and isPlayerInMap() then
+    if removeAnimationEnabled and isPlayerInMap() then
         removeAnimations()
         
         -- Tạo vòng lặp để tiếp tục xóa animations định kỳ
-        if not removeAnimationLoop then
-            removeAnimationLoop = spawn(function()
-                while removeAnimationEnabled and wait(5) do
-                    if isPlayerInMap() then
-                        removeAnimations()
-                    end
+        spawn(function()
+            while removeAnimationEnabled and wait(5) do
+                if isPlayerInMap() then
+                    removeAnimations()
                 end
-            end)
-        end
+            end
+        end)
     end
 end)
 
