@@ -145,7 +145,11 @@ ConfigSystem.DefaultConfig = {
     AutoTPLobbyDelay = 10, -- Mặc định 10 phút
     
     -- Cài đặt Auto Scan Units
-    AutoScanUnits = true -- Mặc định bật
+    AutoScanUnits = true, -- Mặc định bật
+    
+    -- Cài đặt Easter Egg
+    AutoJoinEasterEgg = false,
+    EasterEggTimeDelay = 5
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -303,6 +307,12 @@ local InfoTab = Window:AddTab({
 local PlayTab = Window:AddTab({
     Title = "Play",
     Icon = "rbxassetid://7743871480"
+})
+
+-- Tạo tab Event
+local EventTab = Window:AddTab({
+    Title = "Event",
+    Icon = "rbxassetid://8997385940"
 })
 
 -- Tạo tab In-Game
@@ -3069,3 +3079,159 @@ spawn(function()
         print("Đã cập nhật trạng thái Auto Play từ game: " .. (actualState and "bật" or "tắt"))
     end
 end)
+
+-- Thêm section Easter Egg - Event trong tab Event
+local EasterEggSection = EventTab:AddSection("Easter Egg - Event")
+
+-- Biến lưu trạng thái Easter Egg
+local autoJoinEasterEggEnabled = ConfigSystem.CurrentConfig.AutoJoinEasterEgg or false
+local easterEggTimeDelay = ConfigSystem.CurrentConfig.EasterEggTimeDelay or 5
+local autoJoinEasterEggLoop = nil
+
+-- Hàm để tham gia Easter Egg Event
+local function joinEasterEggEvent()
+    -- Kiểm tra xem người chơi đã ở trong map chưa
+    if isPlayerInMap() then
+        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Easter Egg Event")
+        return false
+    end
+    
+    local success, err = pcall(function()
+        -- Lấy Event
+        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 2)
+        
+        if not Event then
+            warn("Không tìm thấy Event để join Easter Egg Event")
+            return
+        end
+        
+        -- 1. Gửi lệnh Easter-Event
+        local args1 = {
+            [1] = "Easter-Event"
+        }
+        Event:FireServer(unpack(args1))
+        print("Đã gửi lệnh Easter-Event")
+        wait(1) -- Đợi 1 giây
+        
+        -- 2. Gửi lệnh Start
+        local args2 = {
+            [1] = "Start"
+        }
+        Event:FireServer(unpack(args2))
+        print("Đã gửi lệnh Start cho Easter Egg Event")
+    end)
+    
+    if not success then
+        warn("Lỗi khi tham gia Easter Egg Event: " .. tostring(err))
+        return false
+    end
+    
+    return true
+end
+
+-- Time Delay slider cho Easter Egg
+EasterEggSection:AddSlider("EasterEggTimeDelaySlider", {
+    Title = "Time Delay (giây)",
+    Default = easterEggTimeDelay,
+    Min = 1,
+    Max = 60,
+    Rounding = 1,
+    Callback = function(Value)
+        easterEggTimeDelay = Value
+        ConfigSystem.CurrentConfig.EasterEggTimeDelay = Value
+        ConfigSystem.SaveConfig()
+        print("Đã đặt Easter Egg Time Delay: " .. Value .. " giây")
+    end
+})
+
+-- Toggle Auto Join Easter Egg
+EasterEggSection:AddToggle("AutoJoinEasterEggToggle", {
+    Title = "Auto Join Easter Egg",
+    Default = ConfigSystem.CurrentConfig.AutoJoinEasterEgg or false,
+    Callback = function(Value)
+        autoJoinEasterEggEnabled = Value
+        ConfigSystem.CurrentConfig.AutoJoinEasterEgg = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
+            if isPlayerInMap() then
+                Fluent:Notify({
+                    Title = "Auto Join Easter Egg",
+                    Content = "Đang ở trong map, Auto Join Easter Egg sẽ hoạt động khi bạn rời khỏi map",
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Auto Join Easter Egg",
+                    Content = "Auto Join Easter Egg đã được bật, sẽ bắt đầu sau " .. easterEggTimeDelay .. " giây",
+                    Duration = 3
+                })
+                
+                -- Thực hiện join Easter Egg Event sau thời gian delay
+                spawn(function()
+                    wait(easterEggTimeDelay)
+                    if autoJoinEasterEggEnabled and not isPlayerInMap() then
+                        joinEasterEggEvent()
+                    end
+                end)
+            end
+            
+            -- Tạo vòng lặp Auto Join Easter Egg Event
+            spawn(function()
+                while autoJoinEasterEggEnabled and wait(10) do -- Thử join mỗi 10 giây
+                    -- Chỉ thực hiện join nếu người chơi không ở trong map
+                    if not isPlayerInMap() then
+                        -- Áp dụng time delay
+                        print("Đợi " .. easterEggTimeDelay .. " giây trước khi join Easter Egg Event")
+                        wait(easterEggTimeDelay)
+                        
+                        -- Kiểm tra lại sau khi delay
+                        if autoJoinEasterEggEnabled and not isPlayerInMap() then
+                            joinEasterEggEvent()
+                        end
+                    else
+                        -- Người chơi đang ở trong map, không cần join
+                        print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
+                    end
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto Join Easter Egg",
+                Content = "Auto Join Easter Egg đã được tắt",
+                Duration = 3
+            })
+            
+            -- Hủy vòng lặp nếu có
+            if autoJoinEasterEggLoop then
+                autoJoinEasterEggLoop:Disconnect()
+                autoJoinEasterEggLoop = nil
+            end
+        end
+    end
+})
+
+-- Nút Join Easter Egg Now (thủ công)
+EasterEggSection:AddButton({
+    Title = "Join Easter Egg Now",
+    Callback = function()
+        -- Kiểm tra nếu người chơi đang ở trong map
+        if isPlayerInMap() then
+            Fluent:Notify({
+                Title = "Join Easter Egg",
+                Content = "Bạn đang ở trong map, không thể tham gia Easter Egg Event mới",
+                Duration = 3
+            })
+            return
+        end
+        
+        Fluent:Notify({
+            Title = "Easter Egg Event",
+            Content = "Đang tham gia Easter Egg Event...",
+            Duration = 2
+        })
+        
+        joinEasterEggEvent()
+    end
+})
