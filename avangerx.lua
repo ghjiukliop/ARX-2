@@ -772,7 +772,7 @@ StorySection:AddToggle("AutoJoinMapToggle", {
                 
                 -- Thực hiện join map sau thời gian delay
                 spawn(function()
-                    wait(storyTimeDelay)
+                    wait(storyTimeDelay) -- Chờ theo time delay đã đặt
                     if autoJoinMapEnabled and not isPlayerInMap() then
                         joinMap()
                     end
@@ -1475,6 +1475,56 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
             Fluent:Notify({
                 Title = "Auto Join Ranger Stage",
                 Content = "Auto Join Ranger Stage đã được tắt",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Toggle Auto Rejoin khi phát hiện RewardsShow
+RangerSection:AddToggle("AutoRejoinOnRewardsToggle", {
+    Title = "Auto Leave",
+    Default = ConfigSystem.CurrentConfig.AutoRejoinOnRewards or false,
+    Callback = function(Value)
+        local autoRejoinOnRewards = Value
+        ConfigSystem.CurrentConfig.AutoRejoinOnRewards = Value
+        ConfigSystem.SaveConfig()
+        
+        if autoRejoinOnRewards then
+            Fluent:Notify({
+                Title = "Auto Leave",
+                Content = "Sẽ tự động teleport tất cả người chơi khi phát hiện RewardsShow",
+                Duration = 3
+            })
+            
+            -- Tạo vòng lặp kiểm tra RewardsShow
+            spawn(function()
+                while autoRejoinOnRewards and wait(1) do
+                    if isPlayerInMap() then
+                        -- Kiểm tra sự tồn tại của RewardsShow
+                        if game:GetService("Players").LocalPlayer:FindFirstChild("RewardsShow") then
+                            print("Đã phát hiện RewardsShow, sẽ teleport sau 5 giây")
+                            wait(5)
+                            
+                            -- Kiểm tra lại sau 5 giây
+                            if game:GetService("Players").LocalPlayer:FindFirstChild("RewardsShow") and autoRejoinOnRewards then
+                                local Players = game:GetService("Players")
+                                local TeleportService = game:GetService("TeleportService")
+                                
+                                for _, player in pairs(Players:GetPlayers()) do
+                                    TeleportService:Teleport(game.PlaceId, player)
+                                end
+                                
+                                print("Đã teleport tất cả người chơi")
+                            end
+                        end
+                    end
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto Rejoin On Rewards",
+                Content = "Đã tắt tự động teleport khi phát hiện RewardsShow",
                 Duration = 3
             })
         end
@@ -2957,55 +3007,3 @@ spawn(function()
         print("Đã cập nhật trạng thái Auto Play từ game: " .. (actualState and "bật" or "tắt"))
     end
 end)
-
--- Biến để kiểm soát thông báo khi khởi động
-local suppressStartupNotifications = true
-
--- Tùy chỉnh hàm Notify để kiểm tra xem có hiển thị thông báo hay không
-local originalNotify = Fluent.Notify
-Fluent.Notify = function(options)
-    if suppressStartupNotifications then
-        return
-    end
-    originalNotify(Fluent, options)
-end
-
--- Thêm biến này vào cấu hình
-if ConfigSystem.CurrentConfig.SuppressStartupNotifications == nil then
-    ConfigSystem.CurrentConfig.SuppressStartupNotifications = true
-    ConfigSystem.SaveConfig()
-end
-
--- Hàm khôi phục thông báo sau khi script đã khởi động
-local function restoreNotifications()
-    wait(5) -- Đợi 5 giây sau khi script đã khởi động
-    suppressStartupNotifications = ConfigSystem.CurrentConfig.SuppressStartupNotifications
-    print("Đã cập nhật trạng thái hiển thị thông báo: " .. (suppressStartupNotifications and "Ẩn" or "Hiển thị"))
-end
-
--- Gọi hàm khôi phục thông báo
-spawn(restoreNotifications)
-
--- Thêm toggle để kiểm soát thông báo khi khởi động
-SettingsSection:AddToggle("SuppressStartupNotificationsToggle", {
-    Title = "Ẩn thông báo khi khởi động",
-    Default = ConfigSystem.CurrentConfig.SuppressStartupNotifications or true,
-    Callback = function(Value)
-        ConfigSystem.CurrentConfig.SuppressStartupNotifications = Value
-        ConfigSystem.SaveConfig()
-        
-        if Value then
-            Fluent:Notify({
-                Title = "Thông báo khi khởi động",
-                Content = "Đã ẩn thông báo khi khởi động script",
-                Duration = 2
-            })
-        else
-            Fluent:Notify({
-                Title = "Thông báo khi khởi động",
-                Content = "Đã hiển thị thông báo khi khởi động script",
-                Duration = 2
-            })
-        end
-    end
-})
