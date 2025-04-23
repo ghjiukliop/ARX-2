@@ -1436,6 +1436,37 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                     Content = "Đang ở trong map, Auto Join Ranger sẽ hoạt động khi bạn rời khỏi map",
                     Duration = 3
                 })
+                
+                -- Bắt đầu kiểm tra EnemyT
+                spawn(function()
+                    while autoJoinRangerEnabled and isPlayerInMap() and wait(1) do
+                        local startTime = tick()
+                        local enemiesFound = false
+                        
+                        -- Đợi 15 giây và kiểm tra EnemyT
+                        while tick() - startTime < 15 and autoJoinRangerEnabled and isPlayerInMap() do
+                            -- Kiểm tra xem có EnemyT không
+                            local agent = workspace:FindFirstChild("Agent")
+                            if agent and agent:FindFirstChild("EnemyT") and #agent.EnemyT:GetChildren() > 0 then
+                                enemiesFound = true
+                                break
+                            end
+                            wait(1)
+                        end
+                        
+                        -- Nếu sau 15 giây không tìm thấy EnemyT, thực hiện teleport
+                        if not enemiesFound and autoJoinRangerEnabled and isPlayerInMap() then
+                            print("Không tìm thấy EnemyT sau 15 giây, thực hiện teleport")
+                            local Players = game:GetService("Players")
+                            local TeleportService = game:GetService("TeleportService")
+                            
+                            for _, player in pairs(Players:GetPlayers()) do
+                                TeleportService:Teleport(game.PlaceId, player)
+                            end
+                            break
+                        end
+                    end
+                end)
             else
                 Fluent:Notify({
                     Title = "Auto Join Ranger Stage",
@@ -1475,56 +1506,6 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
             Fluent:Notify({
                 Title = "Auto Join Ranger Stage",
                 Content = "Auto Join Ranger Stage đã được tắt",
-                Duration = 3
-            })
-        end
-    end
-})
-
--- Toggle Auto Rejoin khi phát hiện RewardsShow
-RangerSection:AddToggle("AutoRejoinOnRewardsToggle", {
-    Title = "Auto Leave",
-    Default = ConfigSystem.CurrentConfig.AutoRejoinOnRewards or false,
-    Callback = function(Value)
-        local autoRejoinOnRewards = Value
-        ConfigSystem.CurrentConfig.AutoRejoinOnRewards = Value
-        ConfigSystem.SaveConfig()
-        
-        if autoRejoinOnRewards then
-            Fluent:Notify({
-                Title = "Auto Leave",
-                Content = "Sẽ tự động teleport tất cả người chơi khi phát hiện RewardsShow",
-                Duration = 3
-            })
-            
-            -- Tạo vòng lặp kiểm tra RewardsShow
-            spawn(function()
-                while autoRejoinOnRewards and wait(1) do
-                    if isPlayerInMap() then
-                        -- Kiểm tra sự tồn tại của RewardsShow
-                        if game:GetService("Players").LocalPlayer:FindFirstChild("RewardsShow") then
-                            print("Đã phát hiện RewardsShow, sẽ teleport sau 5 giây")
-                            wait(5)
-                            
-                            -- Kiểm tra lại sau 5 giây
-                            if game:GetService("Players").LocalPlayer:FindFirstChild("RewardsShow") and autoRejoinOnRewards then
-                                local Players = game:GetService("Players")
-                                local TeleportService = game:GetService("TeleportService")
-                                
-                                for _, player in pairs(Players:GetPlayers()) do
-                                    TeleportService:Teleport(game.PlaceId, player)
-                                end
-                                
-                                print("Đã teleport tất cả người chơi")
-                            end
-                        end
-                    end
-                end
-            end)
-        else
-            Fluent:Notify({
-                Title = "Auto Rejoin On Rewards",
-                Content = "Đã tắt tự động teleport khi phát hiện RewardsShow",
                 Duration = 3
             })
         end
