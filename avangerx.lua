@@ -1437,33 +1437,35 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                     Duration = 3
                 })
                 
-                -- Bắt đầu kiểm tra EnemyT
+                -- Tạo vòng lặp kiểm tra folder EnemyT khi ở trong map
                 spawn(function()
-                    while autoJoinRangerEnabled and isPlayerInMap() and wait(1) do
-                        local startTime = tick()
-                        local enemiesFound = false
-                        
-                        -- Đợi 15 giây và kiểm tra EnemyT
-                        while tick() - startTime < 15 and autoJoinRangerEnabled and isPlayerInMap() do
-                            -- Kiểm tra xem có EnemyT không
+                    while autoJoinRangerEnabled and wait(5) do -- Kiểm tra mỗi 5 giây
+                        if isPlayerInMap() then
+                            -- Kiểm tra folder EnemyT có rỗng không
+                            local workspace = game:GetService("Workspace")
                             local agent = workspace:FindFirstChild("Agent")
-                            if agent and agent:FindFirstChild("EnemyT") and #agent.EnemyT:GetChildren() > 0 then
-                                enemiesFound = true
-                                break
-                            end
-                            wait(1)
-                        end
-                        
-                        -- Nếu sau 15 giây không tìm thấy EnemyT, thực hiện teleport
-                        if not enemiesFound and autoJoinRangerEnabled and isPlayerInMap() then
-                            print("Không tìm thấy EnemyT sau 15 giây, thực hiện teleport")
-                            local Players = game:GetService("Players")
-                            local TeleportService = game:GetService("TeleportService")
                             
-                            for _, player in pairs(Players:GetPlayers()) do
-                                TeleportService:Teleport(game.PlaceId, player)
+                            if agent then
+                                local enemyT = agent:FindFirstChild("EnemyT")
+                                
+                                if enemyT and #enemyT:GetChildren() == 0 then
+                                    print("Folder EnemyT rỗng, chờ 15 giây để restart map")
+                                    
+                                    -- Chờ 15 giây trước khi restart map
+                                    wait(15)
+                                    
+                                    -- Kiểm tra lại sau 15 giây
+                                    if autoJoinRangerEnabled and isPlayerInMap() and #enemyT:GetChildren() == 0 then
+                                        -- Restart map bằng cách teleport về chính map đó
+                                        local Players = game:GetService("Players")
+                                        local TeleportService = game:GetService("TeleportService")
+                                        
+                                        for _, player in pairs(Players:GetPlayers()) do
+                                            TeleportService:Teleport(game.PlaceId, player)
+                                        end
+                                    end
+                                end
                             end
-                            break
                         end
                     end
                 end)
