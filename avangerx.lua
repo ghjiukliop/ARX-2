@@ -9,7 +9,7 @@ if currentPlaceId ~= allowedPlaceId then
     return
 end
 
--- Delay 15 giây trước khi mở script
+-- Delay 30 giây trước khi mở script
 print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 15 giây...")
 wait(30)
 print("Đang tải script...")
@@ -114,7 +114,7 @@ ConfigSystem.DefaultConfig = {
     ChallengeTimeDelay = 5,
     
     -- Cài đặt In-Game
-    AutoPlay = true,
+    AutoPlay = false,
     AutoRetry = false,
     AutoNext = false,
     AutoVote = false,
