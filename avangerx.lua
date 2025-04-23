@@ -1598,7 +1598,7 @@ local function leaveMap()
         -- Hiển thị thông báo trước khi teleport
         Fluent:Notify({
             Title = "Auto Leave",
-            Content = "Không tìm thấy kẻ địch trong 10 giây, đang teleport về lobby...",
+            Content = "Không tìm thấy kẻ địch và agent trong 10 giây, đang teleport về lobby...",
             Duration = 3
         })
         
@@ -1613,24 +1613,33 @@ local function leaveMap()
     end
 end
 
--- Hàm kiểm tra EnemyT folder
+-- Hàm kiểm tra EnemyT folder và Agent folder
 local function checkEnemyFolder()
-    local success, isEmpty = pcall(function()
+    local success, areEmpty = pcall(function()
+        -- Kiểm tra folder EnemyT
         local enemyFolder = workspace.Agent.EnemyT
-        if not enemyFolder then
-            return true -- Nếu không tìm thấy folder, coi như trống
+        local agentFolder = workspace.Agent.Agent
+        
+        if not enemyFolder and not agentFolder then
+            return true -- Nếu không tìm thấy cả hai folder, coi như trống
         end
         
-        -- Kiểm tra folder có trống không
-        return #enemyFolder:GetChildren() == 0
+        -- Kiểm tra folder EnemyT có trống không
+        local isEnemyTEmpty = not enemyFolder or #enemyFolder:GetChildren() == 0
+        
+        -- Kiểm tra folder Agent có trống không
+        local isAgentEmpty = not agentFolder or #agentFolder:GetChildren() == 0
+        
+        -- Chỉ trả về true nếu cả hai folder đều trống
+        return isEnemyTEmpty and isAgentEmpty
     end)
     
     if not success then
-        warn("Lỗi khi kiểm tra EnemyT folder: " .. tostring(isEmpty))
+        warn("Lỗi khi kiểm tra EnemyT và Agent folder: " .. tostring(areEmpty))
         return false
     end
     
-    return isEmpty
+    return areEmpty
 end
 
 -- Toggle Auto Leave
@@ -1645,7 +1654,7 @@ RangerSection:AddToggle("AutoLeaveToggle", {
         if Value then
             Fluent:Notify({
                 Title = "Auto Leave",
-                Content = "Auto Leave đã được bật. Sẽ tự động rời map nếu không có kẻ địch trong 10 giây",
+                Content = "Auto Leave đã được bật. Sẽ tự động rời map nếu không có kẻ địch và agent trong 10 giây",
                 Duration = 3
             })
             
@@ -1661,15 +1670,15 @@ RangerSection:AddToggle("AutoLeaveToggle", {
                     -- Chỉ kiểm tra nếu đang ở trong map
                     if isPlayerInMap() then
                         local emptyTime = 0
-                        local isEmpty = checkEnemyFolder()
+                        local areEmpty = checkEnemyFolder()
                         
-                        if isEmpty then
+                        if areEmpty then
                             -- Bắt đầu đếm thời gian folder trống
-                            while isEmpty and emptyTime < 10 and autoLeaveEnabled do
+                            while areEmpty and emptyTime < 10 and autoLeaveEnabled do
                                 emptyTime = emptyTime + 1
-                                print("EnemyT folder trống: " .. emptyTime .. "/10 giây")
+                                print("EnemyT và Agent folder trống: " .. emptyTime .. "/10 giây")
                                 wait(1)
-                                isEmpty = checkEnemyFolder()
+                                areEmpty = checkEnemyFolder()
                             end
                             
                             -- Nếu folder vẫn trống sau 10 giây và Auto Leave vẫn được bật, teleport về lobby
@@ -2351,7 +2360,7 @@ InGameSection:AddToggle("AutoVoteToggle", {
             -- Tạo vòng lặp mới với 15 giây delay trước khi bắt đầu
             spawn(function()
                 -- Chờ 1 giây trước khi bắt đầu Auto Vote
-                wait(1)
+                wait(0.1)
                 
                 -- Kiểm tra lại nếu toggle vẫn được bật sau khi đợi
                 if autoVoteEnabled then
