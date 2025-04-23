@@ -233,16 +233,9 @@ local autoJoinMapLoop = nil
 -- Biến lưu trạng thái Ranger Stage
 local selectedRangerMap = ConfigSystem.CurrentConfig.SelectedRangerMap or "OnePiece"
 local selectedRangerDisplayMap = reverseMapNameMapping[selectedRangerMap] or "Voocha Village"
-local selectedActs = {} 
-
--- Khởi tạo giá trị mặc định cho selectedActs nếu chưa có trong ConfigSystem
-if ConfigSystem.CurrentConfig.SelectedActs then
-    selectedActs = ConfigSystem.CurrentConfig.SelectedActs
-else
-    selectedActs = {["RangerStage1"] = true}
-    ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-end
-
+local selectedActs = ConfigSystem.CurrentConfig.SelectedActs or {RangerStage1 = true}
+local currentActIndex = 1  -- Lưu trữ index của Act hiện tại đang được sử dụng
+local orderedActs = {}     -- Lưu trữ danh sách các Acts theo thứ tự
 local rangerFriendOnly = ConfigSystem.CurrentConfig.RangerFriendOnly or false
 local autoJoinRangerEnabled = ConfigSystem.CurrentConfig.AutoJoinRanger or false
 local autoJoinRangerLoop = nil
@@ -1175,7 +1168,7 @@ else
         spawn(function()
             wait(rangerTimeDelay) -- Chờ theo time delay đã đặt
             if autoJoinRangerEnabled and not isPlayerInMap() then
-                joinMultipleRangerStages()
+                joinRangerStage()
             end
         end)
     end
@@ -1272,6 +1265,23 @@ local function toggleRangerFriendOnly()
     end
 end
 
+-- Hàm để cập nhật danh sách Acts đã sắp xếp
+local function updateOrderedActs()
+    orderedActs = {}
+    for act, isSelected in pairs(selectedActs) do
+        if isSelected then
+            table.insert(orderedActs, act)
+        end
+    end
+    
+    -- Đảm bảo currentActIndex không vượt quá số lượng acts
+    if #orderedActs > 0 then
+        currentActIndex = ((currentActIndex - 1) % #orderedActs) + 1
+    else
+        currentActIndex = 1
+    end
+end
+
 -- Hàm để tự động tham gia Ranger Stage
 local function joinRangerStage()
     -- Kiểm tra xem người chơi đã ở trong map chưa
@@ -1279,6 +1289,18 @@ local function joinRangerStage()
         print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
         return false
     end
+    
+    -- Cập nhật danh sách Acts đã sắp xếp
+    updateOrderedActs()
+    
+    -- Kiểm tra xem có Act nào được chọn không
+    if #orderedActs == 0 then
+        warn("Không có Act nào được chọn để join Ranger Stage")
+        return false
+    end
+    
+    -- Lấy Act hiện tại từ danh sách đã sắp xếp
+    local currentAct = orderedActs[currentActIndex]
     
     local success, err = pcall(function()
         -- Lấy Event
@@ -1320,11 +1342,11 @@ local function joinRangerStage()
         Event:FireServer(unpack(args1))
         wait(0.5)
         
-        -- 4.2 Đổi Act
+        -- 4.2 Đổi Act - dùng Act hiện tại theo thứ tự luân phiên
         local args2 = {
             [1] = "Change-Chapter",
             [2] = {
-                ["Chapter"] = selectedRangerMap .. "_" .. selectedActs.RangerStage1
+                ["Chapter"] = selectedRangerMap .. "_" .. currentAct
             }
         }
         Event:FireServer(unpack(args2))
@@ -1337,7 +1359,10 @@ local function joinRangerStage()
         -- 6. Start
         Event:FireServer("Start")
         
-        print("Đã join Ranger Stage: " .. selectedRangerMap .. "_" .. selectedActs.RangerStage1)
+        print("Đã join Ranger Stage: " .. selectedRangerMap .. "_" .. currentAct)
+        
+        -- Cập nhật index cho lần tiếp theo
+        currentActIndex = (currentActIndex % #orderedActs) + 1
     end)
     
     if not success then
@@ -1346,6 +1371,24 @@ local function joinRangerStage()
     end
     
     return true
+end
+
+-- Hàm để lặp qua các selected Acts
+local function cycleRangerStages()
+    if not autoJoinRangerEnabled or isPlayerInMap() then
+        return
+    end
+    
+    -- Đợi theo time delay 
+    wait(rangerTimeDelay)
+    
+    -- Kiểm tra lại điều kiện sau khi đợi
+    if not autoJoinRangerEnabled or isPlayerInMap() then
+        return
+    end
+    
+    -- Join Ranger Stage với Act theo thứ tự luân phiên
+    joinRangerStage()
 end
 
 -- Time Delay slider cho Story
@@ -1381,146 +1424,47 @@ RangerSection:AddDropdown("RangerMapDropdown", {
     end
 })
 
--- Hàm để lấy act đầu tiên được chọn từ danh sách
-local function getFirstSelectedAct()
-    -- Kiểm tra nếu selectedActs không phải là bảng
-    if type(selectedActs) ~= "table" then
-        selectedActs = {["RangerStage1"] = true}
-        ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-        ConfigSystem.SaveConfig()
-        return "RangerStage1"
-    end
-    
-    -- Kiểm tra xem có act nào được chọn không
-    local hasSelection = false
-    for act, selected in pairs(selectedActs) do
-        if selected == true then
-            hasSelection = true
-            break
-        end
-    end
-    
-    -- Nếu không có act nào được chọn, mặc định là RangerStage1
-    if not hasSelection then
-        selectedActs["RangerStage1"] = true
-        ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-        ConfigSystem.SaveConfig()
-        return "RangerStage1"
-    end
-    
-    -- Lấy act đầu tiên được chọn
-    for act, selected in pairs(selectedActs) do
-        if selected == true then
-            return act
-        end
-    end
-    
-    -- Mặc định nếu không tìm thấy (để an toàn)
-    return "RangerStage1"
-end
-
--- Hàm để lấy tất cả các act được chọn
-local function getAllSelectedActs()
-    -- Kiểm tra nếu selectedActs không phải là bảng
-    if type(selectedActs) ~= "table" then
-        selectedActs = {["RangerStage1"] = true}
-        ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-        ConfigSystem.SaveConfig()
-        return {"RangerStage1"}
-    end
-    
-    local acts = {}
-    for act, selected in pairs(selectedActs) do
-        if selected == true then
-            table.insert(acts, act)
-        end
-    end
-    
-    -- Nếu không có act nào được chọn, thêm RangerStage1 làm mặc định
-    if #acts == 0 then
-        selectedActs["RangerStage1"] = true
-        ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-        ConfigSystem.SaveConfig()
-        table.insert(acts, "RangerStage1")
-    end
-    
-    return acts
-end
-
 -- Dropdown để chọn Act
 RangerSection:AddDropdown("ActDropdown", {
     Title = "Choose Act",
     Values = {"RangerStage1", "RangerStage2", "RangerStage3"},
     Multi = true,
-    Default = selectedActs,
+    Default = ConfigSystem.CurrentConfig.SelectedActs or {RangerStage1 = true},
     Callback = function(Values)
-        -- Xử lý trường hợp Values là nil hoặc không phải bảng
-        if Values == nil or type(Values) ~= "table" then
-            Values = {["RangerStage1"] = true}
-        end
-        
-        -- Cập nhật selectedActs
         selectedActs = Values
         ConfigSystem.CurrentConfig.SelectedActs = Values
         ConfigSystem.SaveConfig()
         
-        -- Kiểm tra xem có act nào được chọn hay không
-        local hasAnySelection = false
-        for act, selected in pairs(Values) do
-            if selected == true then
-                hasAnySelection = true
-                break
+        -- Cập nhật danh sách Acts đã sắp xếp
+        updateOrderedActs()
+        
+        -- Hiển thị thông báo khi người dùng chọn act
+        local selectedActsText = ""
+        for act, isSelected in pairs(Values) do
+            if isSelected then
+                selectedActsText = selectedActsText .. act .. ", "
+                
+                -- Thay đổi act khi người dùng chọn
+                changeAct(selectedRangerMap, act)
+                print("Đã chọn act: " .. act)
+                wait(0.5) -- Đợi 0.5 giây giữa các lần gửi để tránh lỗi
             end
         end
         
-        -- Nếu không có act nào được chọn, đặt RangerStage1 làm mặc định
-        if not hasAnySelection then
-            selectedActs["RangerStage1"] = true
-            Values["RangerStage1"] = true
-            ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-            ConfigSystem.SaveConfig()
-            print("Không có act nào được chọn, tự động chọn RangerStage1")
-        end
-        
-        -- Thay đổi act khi người dùng chọn - sử dụng act đầu tiên để hiển thị
-        local firstAct = "RangerStage1" -- Giá trị mặc định an toàn
-        
-        pcall(function()
-            firstAct = getFirstSelectedAct()
-            if firstAct and firstAct ~= "" then
-                changeAct(selectedRangerMap, firstAct)
-            end
-        end)
-        
-        -- Hiển thị thông báo về các act đã chọn
-        local actsText = ""
-        local count = 0
-        
-        pcall(function()
-            for act, selected in pairs(Values) do
-                if selected == true then
-                    if count > 0 then
-                        actsText = actsText .. ", "
-                    end
-                    actsText = actsText .. act
-                    count = count + 1
-                end
-            end
-        end)
-        
-        if count > 0 then
-            print("Đã chọn " .. count .. " act: " .. actsText)
+        if selectedActsText ~= "" then
+            selectedActsText = selectedActsText:sub(1, -3) -- Xóa dấu phẩy cuối cùng
+            Fluent:Notify({
+                Title = "Acts Selected",
+                Content = "Đã chọn: " .. selectedActsText,
+                Duration = 2
+            })
         else
-            print("Không có act nào được chọn, đã tự động chọn RangerStage1")
-            actsText = "RangerStage1"
+            Fluent:Notify({
+                Title = "Warning",
+                Content = "Bạn chưa chọn act nào! Vui lòng chọn ít nhất một act.",
+                Duration = 2
+            })
         end
-        
-        -- Hiển thị thông báo với các act đã chọn
-        Fluent:Notify({
-            Title = "Ranger Stage Acts",
-            Content = "Đã chọn: " .. actsText,
-            Duration = 2
-        })
     end
 })
 
@@ -1577,6 +1521,24 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
         ConfigSystem.SaveConfig()
         
         if autoJoinRangerEnabled then
+            -- Kiểm tra xem có Act nào được chọn không
+            local hasSelectedAct = false
+            for _, isSelected in pairs(selectedActs) do
+                if isSelected then
+                    hasSelectedAct = true
+                    break
+                end
+            end
+            
+            if not hasSelectedAct then
+                Fluent:Notify({
+                    Title = "Warning",
+                    Content = "Bạn chưa chọn act nào! Vui lòng chọn ít nhất một act.",
+                    Duration = 3
+                })
+                return
+            end
+            
             -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
             if isPlayerInMap() then
                 Fluent:Notify({
@@ -1595,7 +1557,7 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 spawn(function()
                     wait(rangerTimeDelay)
                     if autoJoinRangerEnabled and not isPlayerInMap() then
-                        joinMultipleRangerStages()
+                        joinRangerStage()
                     end
                 end)
             end
@@ -1605,14 +1567,8 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 while autoJoinRangerEnabled and wait(10) do -- Thử join map mỗi 10 giây
                     -- Chỉ thực hiện join map nếu người chơi không ở trong map
                     if not isPlayerInMap() then
-                        -- Áp dụng time delay
-                        print("Đợi " .. rangerTimeDelay .. " giây trước khi join Ranger Stage")
-                        wait(rangerTimeDelay)
-                        
-                        -- Kiểm tra lại sau khi delay
-                        if autoJoinRangerEnabled and not isPlayerInMap() then
-                            joinMultipleRangerStages()
-                        end
+                        -- Gọi hàm cycleRangerStages để luân phiên các Acts
+                        cycleRangerStages()
                     else
                         -- Người chơi đang ở trong map, không cần join
                         print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
@@ -2839,6 +2795,9 @@ AFKSection:AddButton({
 spawn(function()
     wait(3) -- Đợi game load
     
+    -- Khởi tạo danh sách Acts khi script khởi động
+    updateOrderedActs()
+    
     -- Kiểm tra nếu người chơi đã ở trong AFKWorld
     local isInAFKWorld = checkAFKWorldState()
     
@@ -3444,140 +3403,3 @@ spawn(function()
         print("Đã tự động thiết lập Anti AFK khi khởi động script")
     end
 end)
-
--- Hàm để join nhiều acts một cách tuần tự
-local function joinMultipleRangerStages()
-    -- Đảm bảo selectedActs là bảng hợp lệ
-    if type(selectedActs) ~= "table" then
-        selectedActs = {["RangerStage1"] = true}
-        ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-        ConfigSystem.SaveConfig()
-        
-        Fluent:Notify({
-            Title = "Auto Join Ranger Stage",
-            Content = "Đã khôi phục cài đặt mặc định cho Ranger Stage",
-            Duration = 3
-        })
-    end
-    
-    -- Lấy danh sách tất cả các acts được chọn
-    local actsToJoin = {}
-    
-    for act, selected in pairs(selectedActs) do
-        if selected == true then
-            table.insert(actsToJoin, act)
-        end
-    end
-    
-    -- Nếu không có act nào được chọn, đặt RangerStage1 làm mặc định
-    if #actsToJoin == 0 then
-        selectedActs["RangerStage1"] = true
-        table.insert(actsToJoin, "RangerStage1")
-        ConfigSystem.CurrentConfig.SelectedActs = selectedActs
-        ConfigSystem.SaveConfig()
-        
-        Fluent:Notify({
-            Title = "Auto Join Ranger Stage",
-            Content = "Không có Ranger Stage nào được chọn, tự động chọn RangerStage1",
-            Duration = 3
-        })
-    end
-    
-    -- Chọn một act ngẫu nhiên từ danh sách
-    local randomIndex = math.random(1, #actsToJoin)
-    local selectedAct = actsToJoin[randomIndex]
-    
-    -- Đảm bảo selectedAct có giá trị
-    if not selectedAct or selectedAct == "" then
-        selectedAct = "RangerStage1"
-    end
-    
-    -- Kiểm tra xem người chơi đã ở trong map chưa
-    if isPlayerInMap() then
-        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
-        return false
-    end
-    
-    print("Đang thử tham gia Ranger Stage: " .. selectedRangerMap .. "_" .. selectedAct)
-    
-    local success, err = pcall(function()
-        -- Lấy Event
-        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 2)
-        
-        if not Event then
-            warn("Không tìm thấy Event để join Ranger Stage")
-            return
-        end
-        
-        -- 1. Create
-        Event:FireServer("Create")
-        wait(0.5)
-        
-        -- 2. Change Mode to Ranger Stage
-        local modeArgs = {
-            [1] = "Change-Mode",
-            [2] = {
-                ["Mode"] = "Ranger Stage"
-            }
-        }
-        Event:FireServer(unpack(modeArgs))
-        wait(0.5)
-        
-        -- 3. Friend Only (nếu được bật)
-        if rangerFriendOnly then
-            Event:FireServer("Change-FriendOnly")
-            wait(0.5)
-        end
-        
-        -- 4. Chọn Map và Act
-        -- 4.1 Đổi Map
-        local args1 = {
-            [1] = "Change-World",
-            [2] = {
-                ["World"] = selectedRangerMap
-            }
-        }
-        Event:FireServer(unpack(args1))
-        wait(0.5)
-        
-        -- 4.2 Đổi Act
-        local args2 = {
-            [1] = "Change-Chapter",
-            [2] = {
-                ["Chapter"] = selectedRangerMap .. "_" .. selectedAct
-            }
-        }
-        Event:FireServer(unpack(args2))
-        wait(0.5)
-        
-        -- 5. Submit
-        Event:FireServer("Submit")
-        wait(1)
-        
-        -- 6. Start
-        Event:FireServer("Start")
-        
-        print("Đã join Ranger Stage: " .. selectedRangerMap .. "_" .. selectedAct)
-        
-        -- Hiển thị thông báo
-        Fluent:Notify({
-            Title = "Ranger Stage",
-            Content = "Đã tham gia " .. selectedAct,
-            Duration = 2
-        })
-    end)
-    
-    if not success then
-        warn("Lỗi khi join Ranger Stage: " .. tostring(err))
-        
-        -- Hiển thị thông báo lỗi
-        Fluent:Notify({
-            Title = "Lỗi",
-            Content = "Không thể tham gia Ranger Stage: " .. tostring(err),
-            Duration = 3
-        })
-        return false
-    end
-    
-    return true
-end
