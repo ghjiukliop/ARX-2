@@ -11,10 +11,10 @@ end
 
 -- Delay 15 giây trước khi mở script
 print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 15 giây...")
-wait(15)
+wait(30)
 print("Đang tải script...")
 
--- Tải thư viện Fluent
+-- Tải thư viện Fluent từ Arise
 local success, err = pcall(function()
     Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
     SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -114,7 +114,7 @@ ConfigSystem.DefaultConfig = {
     ChallengeTimeDelay = 5,
     
     -- Cài đặt In-Game
-    AutoPlay = false,
+    AutoPlay = true,
     AutoRetry = false,
     AutoNext = false,
     AutoVote = false,
