@@ -118,7 +118,7 @@ ConfigSystem.DefaultConfig = {
     AutoRetry = false,
     AutoNext = false,
     AutoVote = false,
-    RemoveAnimation = true,
+    RemoveAnimation = false,
     
     -- Cài đặt Update Units
     AutoUpdate = false,
@@ -245,7 +245,7 @@ local autoPlayEnabled = ConfigSystem.CurrentConfig.AutoPlay or false
 local autoRetryEnabled = ConfigSystem.CurrentConfig.AutoRetry or false
 local autoNextEnabled = ConfigSystem.CurrentConfig.AutoNext or false
 local autoVoteEnabled = ConfigSystem.CurrentConfig.AutoVote or false
-local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or true
+local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or false
 local autoRetryLoop = nil
 local autoNextLoop = nil
 local autoVoteLoop = nil
@@ -2244,66 +2244,6 @@ end
 -- Thêm section Units Update trong tab In-Game
 local UnitsUpdateSection = InGameTab:AddSection("Units Update")
 
--- Toggle Auto Scan Units
-UnitsUpdateSection:AddToggle("AutoScanUnitsToggle", {
-    Title = "Auto Scan Units",
-    Default = autoScanUnitsEnabled,
-    Callback = function(Value)
-        autoScanUnitsEnabled = Value
-        ConfigSystem.CurrentConfig.AutoScanUnits = Value
-        ConfigSystem.SaveConfig()
-        
-        if Value then
-            Fluent:Notify({
-                Title = "Auto Scan Units",
-                Content = "Auto Scan Units đã được bật, sẽ tự động scan mỗi 3 giây khi ở trong map",
-                Duration = 3
-            })
-            
-            -- Hủy vòng lặp cũ nếu có
-            if autoScanUnitsLoop then
-                autoScanUnitsLoop:Disconnect()
-                autoScanUnitsLoop = nil
-            end
-            
-            -- Scan ngay lập tức nếu đang trong map
-            if isPlayerInMap() then
-                local success = scanUnits()
-                if success then
-                    local unitInfo = "Phát hiện " .. #unitSlots .. " unit"
-                    print(unitInfo)
-                end
-            end
-            
-            -- Tạo vòng lặp mới để scan mỗi 3 giây
-            spawn(function()
-                while autoScanUnitsEnabled and wait(3) do
-                    if isPlayerInMap() then
-                        local success = scanUnits()
-                        if success then
-                            print("Auto Scan: Phát hiện " .. #unitSlots .. " unit")
-                        end
-                    else
-                        print("Auto Scan: Không ở trong map, đợi đến khi vào map")
-                    end
-                end
-            end)
-        else
-            Fluent:Notify({
-                Title = "Auto Scan Units",
-                Content = "Auto Scan Units đã được tắt",
-                Duration = 3
-            })
-            
-            -- Hủy vòng lặp nếu có
-            if autoScanUnitsLoop then
-                autoScanUnitsLoop:Disconnect()
-                autoScanUnitsLoop = nil
-            end
-        end
-    end
-})
-
 -- Tạo 6 dropdown cho 6 slot
 for i = 1, 6 do
     UnitsUpdateSection:AddDropdown("Slot" .. i .. "LevelDropdown", {
@@ -2708,7 +2648,7 @@ end
 -- Thêm Toggle Remove Animation
 InGameSection:AddToggle("RemoveAnimationToggle", {
     Title = "Remove Animation",
-    Default = ConfigSystem.CurrentConfig.RemoveAnimation or true,
+    Default = ConfigSystem.CurrentConfig.RemoveAnimation or false,
     Callback = function(Value)
         removeAnimationEnabled = Value
         ConfigSystem.CurrentConfig.RemoveAnimation = Value
@@ -2736,7 +2676,7 @@ InGameSection:AddToggle("RemoveAnimationToggle", {
             
             -- Tạo vòng lặp mới để xóa animations định kỳ
             spawn(function()
-                while removeAnimationEnabled and wait(5) do
+                while removeAnimationEnabled and wait(3) do
                     if isPlayerInMap() then
                         removeAnimations()
                     end
@@ -2767,7 +2707,7 @@ spawn(function()
         
         -- Tạo vòng lặp để tiếp tục xóa animations định kỳ
         spawn(function()
-            while removeAnimationEnabled and wait(5) do
+            while removeAnimationEnabled and wait(3) do
                 if isPlayerInMap() then
                     removeAnimations()
                 end
