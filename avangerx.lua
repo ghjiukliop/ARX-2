@@ -2957,3 +2957,55 @@ spawn(function()
         print("Đã cập nhật trạng thái Auto Play từ game: " .. (actualState and "bật" or "tắt"))
     end
 end)
+
+-- Biến để kiểm soát thông báo khi khởi động
+local suppressStartupNotifications = true
+
+-- Tùy chỉnh hàm Notify để kiểm tra xem có hiển thị thông báo hay không
+local originalNotify = Fluent.Notify
+Fluent.Notify = function(options)
+    if suppressStartupNotifications then
+        return
+    end
+    originalNotify(Fluent, options)
+end
+
+-- Thêm biến này vào cấu hình
+if ConfigSystem.CurrentConfig.SuppressStartupNotifications == nil then
+    ConfigSystem.CurrentConfig.SuppressStartupNotifications = true
+    ConfigSystem.SaveConfig()
+end
+
+-- Hàm khôi phục thông báo sau khi script đã khởi động
+local function restoreNotifications()
+    wait(5) -- Đợi 5 giây sau khi script đã khởi động
+    suppressStartupNotifications = ConfigSystem.CurrentConfig.SuppressStartupNotifications
+    print("Đã cập nhật trạng thái hiển thị thông báo: " .. (suppressStartupNotifications and "Ẩn" or "Hiển thị"))
+end
+
+-- Gọi hàm khôi phục thông báo
+spawn(restoreNotifications)
+
+-- Thêm toggle để kiểm soát thông báo khi khởi động
+SettingsSection:AddToggle("SuppressStartupNotificationsToggle", {
+    Title = "Ẩn thông báo khi khởi động",
+    Default = ConfigSystem.CurrentConfig.SuppressStartupNotifications or true,
+    Callback = function(Value)
+        ConfigSystem.CurrentConfig.SuppressStartupNotifications = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            Fluent:Notify({
+                Title = "Thông báo khi khởi động",
+                Content = "Đã ẩn thông báo khi khởi động script",
+                Duration = 2
+            })
+        else
+            Fluent:Notify({
+                Title = "Thông báo khi khởi động",
+                Content = "Đã hiển thị thông báo khi khởi động script",
+                Duration = 2
+            })
+        end
+    end
+})
