@@ -118,7 +118,7 @@ ConfigSystem.DefaultConfig = {
     AutoRetry = false,
     AutoNext = false,
     AutoVote = false,
-    RemoveAnimation = false,
+    RemoveAnimation = true,
     
     -- Cài đặt Update Units
     AutoUpdate = false,
@@ -300,7 +300,7 @@ local autoPlayEnabled = ConfigSystem.CurrentConfig.AutoPlay or false
 local autoRetryEnabled = ConfigSystem.CurrentConfig.AutoRetry or false
 local autoNextEnabled = ConfigSystem.CurrentConfig.AutoNext or false
 local autoVoteEnabled = ConfigSystem.CurrentConfig.AutoVote or false
-local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or false
+local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or true
 local autoRetryLoop = nil
 local autoNextLoop = nil
 local autoVoteLoop = nil
@@ -1214,6 +1214,13 @@ local function setupOptimizedLoops()
                     shouldContinue = isPlayerInMap()
                 end
                 
+                -- Kiểm tra Auto Join Ranger
+                if autoJoinRangerEnabled and not shouldContinue then
+                    cycleRangerStages()
+                    wait(5)
+                    shouldContinue = isPlayerInMap()
+                end
+                
                 -- Kiểm tra Auto Boss Event
                 if autoBossEventEnabled and not shouldContinue then
                     joinBossEvent()
@@ -1329,7 +1336,12 @@ end
 
 -- Hàm để tự động tham gia Ranger Stage
 local function joinRangerStage()
-    -- Không kiểm tra xem người chơi đã ở trong map chưa
+    -- Kiểm tra xem người chơi đã ở trong map chưa
+    if isPlayerInMap() then
+        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
+        return false
+    end
+    
     -- Cập nhật danh sách Acts đã sắp xếp
     updateOrderedActs()
     
@@ -1344,7 +1356,7 @@ local function joinRangerStage()
     
     local success, err = pcall(function()
         -- Lấy Event
-        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 0.5)
+        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 2)
         
         if not Event then
             warn("Không tìm thấy Event để join Ranger Stage")
@@ -1415,12 +1427,15 @@ end
 
 -- Hàm để lặp qua các selected Acts
 local function cycleRangerStages()
-    -- Không kiểm tra xem người chơi đã ở trong map chưa
+    if not autoJoinRangerEnabled or isPlayerInMap() then
+        return
+    end
+    
     -- Đợi theo time delay 
     wait(rangerTimeDelay)
     
     -- Kiểm tra lại điều kiện sau khi đợi
-    if not autoJoinRangerEnabled then
+    if not autoJoinRangerEnabled or isPlayerInMap() then
         return
     end
     
@@ -1576,25 +1591,40 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 return
             end
             
-            Fluent:Notify({
-                Title = "Auto Join Ranger Stage",
-                Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
-                Duration = 3
-            })
-            
-            -- Thực hiện join Ranger Stage sau thời gian delay
-            spawn(function()
-                wait(rangerTimeDelay)
-                if autoJoinRangerEnabled then
-                    joinRangerStage()
-                end
-            end)
+            -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
+            if isPlayerInMap() then
+                Fluent:Notify({
+                    Title = "Auto Join Ranger Stage",
+                    Content = "Đang ở trong map, Auto Join Ranger sẽ hoạt động khi bạn rời khỏi map",
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Auto Join Ranger Stage",
+                    Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
+                    Duration = 3
+                })
+                
+                -- Thực hiện join Ranger Stage sau thời gian delay
+                spawn(function()
+                    wait(rangerTimeDelay)
+                    if autoJoinRangerEnabled and not isPlayerInMap() then
+                        joinRangerStage()
+                    end
+                end)
+            end
             
             -- Tạo vòng lặp Auto Join Ranger Stage
             spawn(function()
                 while autoJoinRangerEnabled and wait(10) do -- Thử join map mỗi 10 giây
-                    -- Gọi hàm cycleRangerStages để luân phiên các Acts
-                    cycleRangerStages()
+                    -- Chỉ thực hiện join map nếu người chơi không ở trong map
+                    if not isPlayerInMap() then
+                        -- Gọi hàm cycleRangerStages để luân phiên các Acts
+                        cycleRangerStages()
+                    else
+                        -- Người chơi đang ở trong map, không cần join
+                        print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
+                    end
                 end
             end)
         else
@@ -2878,38 +2908,18 @@ local function removeAnimations()
     end
     
     local success, err = pcall(function()
-        -- Xóa RewardsUI từ PlayerGui
-        local player = game:GetService("Players").LocalPlayer
-        if player and player.PlayerGui then
-            local rewardsUI = player.PlayerGui:FindFirstChild("RewardsUI")
-            if rewardsUI then
-                rewardsUI:Destroy()
-                print("Đã xóa PlayerGui.RewardsUI")
-            end
-            
-            -- Xóa UIS.Packages.Transition từ PlayerGui
-            local uis = player.PlayerGui:FindFirstChild("UIS")
-            if uis then
-                local packages = uis:FindFirstChild("Packages")
-                if packages then
-                    local transition = packages:FindFirstChild("Transition")
-                    if transition then
-                        transition:Destroy()
-                        print("Đã xóa PlayerGui.UIS.Packages.Transition")
-                    end
-                end
-            end
-        end
-        
-        -- Xóa UIS.Packages.Transition từ ReplicatedStorage
+        -- Xóa UIS.Packages.Transition.Flash từ ReplicatedStorage
         local uis = game:GetService("ReplicatedStorage"):FindFirstChild("UIS")
         if uis then
             local packages = uis:FindFirstChild("Packages")
             if packages then
                 local transition = packages:FindFirstChild("Transition")
                 if transition then
-                    transition:Destroy()
-                    print("Đã xóa ReplicatedStorage.UIS.Packages.Transition")
+                    local flash = transition:FindFirstChild("Flash")
+                    if flash then
+                        flash:Destroy()
+                        print("Đã xóa ReplicatedStorage.UIS.Packages.Transition.Flash")
+                    end
                 end
             end
             
@@ -2918,26 +2928,6 @@ local function removeAnimations()
             if rewardsUI then
                 rewardsUI:Destroy()
                 print("Đã xóa ReplicatedStorage.UIS.RewardsUI")
-            end
-        end
-        
-        -- Xóa RewardsUI từ StarterGui
-        local starterRewardsUI = game:GetService("StarterGui"):FindFirstChild("RewardsUI")
-        if starterRewardsUI then
-            starterRewardsUI:Destroy()
-            print("Đã xóa StarterGui.RewardsUI")
-        end
-        
-        -- Xóa UIS.Packages.Transition từ StarterGui
-        local uis = game:GetService("StarterGui"):FindFirstChild("UIS")
-        if uis then
-            local packages = uis:FindFirstChild("Packages")
-            if packages then
-                local transition = packages:FindFirstChild("Transition")
-                if transition then
-                    transition:Destroy()
-                    print("Đã xóa StarterGui.UIS.Packages.Transition")
-                end
             end
         end
     end)
@@ -2953,7 +2943,7 @@ end
 -- Thêm Toggle Remove Animation
 InGameSection:AddToggle("RemoveAnimationToggle", {
     Title = "Remove Animation",
-    Default = ConfigSystem.CurrentConfig.RemoveAnimation or false,
+    Default = ConfigSystem.CurrentConfig.RemoveAnimation or true,
     Callback = function(Value)
         removeAnimationEnabled = Value
         ConfigSystem.CurrentConfig.RemoveAnimation = Value
@@ -3803,16 +3793,3 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
-
--- Tạo vòng lặp riêng cho Auto Join Ranger Stage
-spawn(function()
-    -- Đợi một chút để script khởi động hoàn tất
-    wait(5)
-    
-    while wait(10) do
-        -- Kiểm tra Auto Join Ranger
-        if autoJoinRangerEnabled then
-            cycleRangerStages()
-        end
-    end
-end)
