@@ -1214,13 +1214,6 @@ local function setupOptimizedLoops()
                     shouldContinue = isPlayerInMap()
                 end
                 
-                -- Kiểm tra Auto Join Ranger
-                if autoJoinRangerEnabled and not shouldContinue then
-                    cycleRangerStages()
-                    wait(5)
-                    shouldContinue = isPlayerInMap()
-                end
-                
                 -- Kiểm tra Auto Boss Event
                 if autoBossEventEnabled and not shouldContinue then
                     joinBossEvent()
@@ -1336,12 +1329,7 @@ end
 
 -- Hàm để tự động tham gia Ranger Stage
 local function joinRangerStage()
-    -- Kiểm tra xem người chơi đã ở trong map chưa
-    if isPlayerInMap() then
-        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
-        return false
-    end
-    
+    -- Không kiểm tra xem người chơi đã ở trong map chưa
     -- Cập nhật danh sách Acts đã sắp xếp
     updateOrderedActs()
     
@@ -1356,7 +1344,7 @@ local function joinRangerStage()
     
     local success, err = pcall(function()
         -- Lấy Event
-        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 2)
+        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 0.5)
         
         if not Event then
             warn("Không tìm thấy Event để join Ranger Stage")
@@ -1427,15 +1415,12 @@ end
 
 -- Hàm để lặp qua các selected Acts
 local function cycleRangerStages()
-    if not autoJoinRangerEnabled or isPlayerInMap() then
-        return
-    end
-    
+    -- Không kiểm tra xem người chơi đã ở trong map chưa
     -- Đợi theo time delay 
     wait(rangerTimeDelay)
     
     -- Kiểm tra lại điều kiện sau khi đợi
-    if not autoJoinRangerEnabled or isPlayerInMap() then
+    if not autoJoinRangerEnabled then
         return
     end
     
@@ -1591,40 +1576,25 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 return
             end
             
-            -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
-            if isPlayerInMap() then
-                Fluent:Notify({
-                    Title = "Auto Join Ranger Stage",
-                    Content = "Đang ở trong map, Auto Join Ranger sẽ hoạt động khi bạn rời khỏi map",
-                    Duration = 3
-                })
-            else
-                Fluent:Notify({
-                    Title = "Auto Join Ranger Stage",
-                    Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
-                    Duration = 3
-                })
-                
-                -- Thực hiện join Ranger Stage sau thời gian delay
-                spawn(function()
-                    wait(rangerTimeDelay)
-                    if autoJoinRangerEnabled and not isPlayerInMap() then
-                        joinRangerStage()
-                    end
-                end)
-            end
+            Fluent:Notify({
+                Title = "Auto Join Ranger Stage",
+                Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
+                Duration = 3
+            })
+            
+            -- Thực hiện join Ranger Stage sau thời gian delay
+            spawn(function()
+                wait(rangerTimeDelay)
+                if autoJoinRangerEnabled then
+                    joinRangerStage()
+                end
+            end)
             
             -- Tạo vòng lặp Auto Join Ranger Stage
             spawn(function()
                 while autoJoinRangerEnabled and wait(10) do -- Thử join map mỗi 10 giây
-                    -- Chỉ thực hiện join map nếu người chơi không ở trong map
-                    if not isPlayerInMap() then
-                        -- Gọi hàm cycleRangerStages để luân phiên các Acts
-                        cycleRangerStages()
-                    else
-                        -- Người chơi đang ở trong map, không cần join
-                        print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
-                    end
+                    -- Gọi hàm cycleRangerStages để luân phiên các Acts
+                    cycleRangerStages()
                 end
             end)
         else
@@ -3833,3 +3803,16 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
+
+-- Tạo vòng lặp riêng cho Auto Join Ranger Stage
+spawn(function()
+    -- Đợi một chút để script khởi động hoàn tất
+    wait(5)
+    
+    while wait(10) do
+        -- Kiểm tra Auto Join Ranger
+        if autoJoinRangerEnabled then
+            cycleRangerStages()
+        end
+    end
+end)
