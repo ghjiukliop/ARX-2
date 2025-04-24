@@ -355,8 +355,18 @@ local function makeDraggable(ui)
     local dragStart
     local startPos
     
+    -- Kiểm tra nếu UI có Frame
     if ui.Frame then
         local frame = ui.Frame
+        
+        -- Tạo một Frame trong suốt để xử lý input
+        local dragFrame = Instance.new("Frame")
+        dragFrame.Name = "DragFrame"
+        dragFrame.Size = UDim2.fromScale(1, 1)
+        dragFrame.Position = UDim2.fromOffset(0, 0)
+        dragFrame.BackgroundTransparency = 1 -- Hoàn toàn trong suốt
+        dragFrame.Parent = frame
+        dragFrame.ZIndex = 999999 -- Đảm bảo nằm trên cùng
         
         -- Hàm xử lý khi bắt đầu kéo
         local function updateInput(input)
@@ -365,14 +375,13 @@ local function makeDraggable(ui)
             frame.Position = newPosition
         end
         
-        -- Bắt đầu kéo - áp dụng cho toàn bộ UI thay vì chỉ header
-        frame.InputBegan:Connect(function(input)
+        -- Bắt đầu kéo
+        dragFrame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = input.Position
                 startPos = frame.Position
                 
-                -- Bắt input và tiếp tục cập nhật vị trí
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
@@ -381,15 +390,15 @@ local function makeDraggable(ui)
             end
         end)
         
-        -- Xử lý thay đổi input khi đang kéo
-        frame.InputChanged:Connect(function(input)
+        -- Xử lý thay đổi input
+        dragFrame.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                 dragInput = input
             end
         end)
         
         -- Kết thúc kéo
-        frame.InputEnded:Connect(function(input)
+        dragFrame.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = false
                 dragInput = nil
