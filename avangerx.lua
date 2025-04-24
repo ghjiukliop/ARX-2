@@ -3501,6 +3501,62 @@ local function getRewards()
     return result
 end
 
+-- Hàm lấy số lượng tài nguyên hiện tại
+local function getCurrentResources()
+    local player = game:GetService("Players").LocalPlayer
+    local playerName = player.Name
+    local playerData = game:GetService("ReplicatedStorage"):FindFirstChild("Player_Data")
+    
+    if not playerData then
+        return {}
+    end
+    
+    local playerFolder = playerData:FindFirstChild(playerName)
+    if not playerFolder then
+        return {}
+    end
+    
+    local dataFolder = playerFolder:FindFirstChild("Data")
+    if not dataFolder then
+        return {}
+    end
+    
+    local resources = {}
+    
+    -- Lấy số lượng các tài nguyên phổ biến
+    local commonResources = {"Gold", "Gem", "EXP", "Rubber Fruit"}
+    for _, resourceName in ipairs(commonResources) do
+        local resourceValue = dataFolder:FindFirstChild(resourceName)
+        if resourceValue then
+            resources[resourceName] = resourceValue.Value
+        end
+    end
+    
+    -- Kiểm tra thêm các tài nguyên khác trong Data folder
+    for _, child in pairs(dataFolder:GetChildren()) do
+        if child:IsA("IntValue") or child:IsA("NumberValue") then
+            resources[child.Name] = child.Value
+        end
+    end
+    
+    return resources
+end
+
+-- Hàm tính tổng tài nguyên sau khi nhận phần thưởng
+local function calculateTotalResources(rewards)
+    local currentResources = getCurrentResources()
+    local totalResources = {}
+    
+    -- Tính tổng cho mỗi loại tài nguyên
+    for _, reward in ipairs(rewards) do
+        local resourceName = reward.Name
+        local currentAmount = currentResources[resourceName] or 0
+        totalResources[resourceName] = currentAmount + reward.Amount
+    end
+    
+    return totalResources
+end
+
 -- Hàm lấy thông tin trận đấu
 local function getGameInfoText()
     local player = game:GetService("Players").LocalPlayer
@@ -3549,6 +3605,29 @@ local function createEmbed(rewards, gameInfo)
         })
     end
     
+    -- Tính và thêm trường tổng nhận
+    local totalResources = calculateTotalResources(rewards)
+    if next(totalResources) ~= nil then
+        local totalText = ""
+        for resourceName, totalAmount in pairs(totalResources) do
+            -- Chỉ hiển thị tài nguyên có trong phần thưởng
+            for _, reward in ipairs(rewards) do
+                if reward.Name == resourceName then
+                    totalText = totalText .. "- " .. resourceName .. ": " .. totalAmount .. "\n"
+                    break
+                end
+            end
+        end
+        
+        if totalText ~= "" then
+            table.insert(fields, {
+                name = "💰 Tổng nhận",
+                value = totalText,
+                inline = false
+            })
+        end
+    end
+    
     -- Thêm trường thông tin trận đấu
     if gameInfo ~= "" then
         table.insert(fields, {
@@ -3565,7 +3644,7 @@ local function createEmbed(rewards, gameInfo)
         color = 5793266, -- Màu tím
         fields = fields,
         footer = {
-            text = "HT Hub | Anime Rangers X"
+            text = "HT Hub | Anime Rangers X • " .. os.date("%x %X")
         },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
