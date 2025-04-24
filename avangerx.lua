@@ -3594,7 +3594,7 @@ local function createEmbed(rewards, gameInfo)
     -- Thêm trường phần thưởng
     local rewardText = ""
     for _, r in ipairs(rewards) do
-        rewardText = rewardText .. "- " .. r.Name .. ": " .. r.Amount .. "\n"
+        rewardText = rewardText .. "- " .. r.Name .. ": +" .. r.Amount .. "\n"
     end
     
     if rewardText ~= "" then
@@ -3605,28 +3605,22 @@ local function createEmbed(rewards, gameInfo)
         })
     end
     
-    -- Tính và thêm trường tổng nhận
-    local totalResources = calculateTotalResources(rewards)
-    if next(totalResources) ~= nil then
-        local totalText = ""
-        for resourceName, totalAmount in pairs(totalResources) do
-            -- Chỉ hiển thị tài nguyên có trong phần thưởng
-            for _, reward in ipairs(rewards) do
-                if reward.Name == resourceName then
-                    totalText = totalText .. "- " .. resourceName .. ": " .. totalAmount .. "\n"
-                    break
-                end
-            end
-        end
-        
-        if totalText ~= "" then
-            table.insert(fields, {
-                name = "💰 Tổng nhận",
-                value = totalText,
-                inline = false
-            })
-        end
+    -- Lấy và hiển thị thông tin tài nguyên người chơi
+    local playerResources = getCurrentResources()
+    local statsText = ""
+    
+    -- Luôn hiển thị các tài nguyên chính: Level, Gem, Gold, Egg
+    local mainResources = {"Level", "Gem", "Gold", "Egg"}
+    for _, resourceName in ipairs(mainResources) do
+        local value = playerResources[resourceName] or 0
+        statsText = statsText .. "- " .. resourceName .. ": " .. value .. "\n"
     end
+    
+    table.insert(fields, {
+        name = "👤 Account",
+        value = statsText,
+        inline = false
+    })
     
     -- Thêm trường thông tin trận đấu
     if gameInfo ~= "" then
@@ -3684,7 +3678,16 @@ local function sendWebhook(rewards)
         -- Sử dụng text thông thường
         content = "📦 **Phần thưởng vừa nhận:**\n"
         for _, r in ipairs(rewards) do
-            content = content .. "- " .. r.Name .. ": ``" .. r.Amount .. "``\n"
+            content = content .. "- " .. r.Name .. ": ``+" .. r.Amount .. "``\n"
+        end
+        
+        -- Thêm thông tin Account
+        local playerResources = getCurrentResources()
+        content = content .. "\n👤 **Account:**\n"
+        local mainResources = {"Level", "Gem", "Gold", "Egg"}
+        for _, resourceName in ipairs(mainResources) do
+            local value = playerResources[resourceName] or 0
+            content = content .. "- " .. resourceName .. ": ``" .. value .. "``\n"
         end
         
         if gameInfo ~= "" then
