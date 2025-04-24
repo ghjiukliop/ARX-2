@@ -9,9 +9,9 @@ if currentPlaceId ~= allowedPlaceId then
     return
 end
 
--- Delay 30 giây trước khi mở script
-print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 15 giây...")
-wait(30)
+-- Delay 20 giây trước khi mở script
+print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 20 giây...")
+wait(20)
 print("Đang tải script...")
 
 -- Tải thư viện Fluent từ Arise
