@@ -160,7 +160,6 @@ ConfigSystem.DefaultConfig = {
     -- Cài đặt Webhook
     WebhookURL = "",
     AutoSendWebhook = false,
-    WebhookEmbed = true
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -3479,7 +3478,6 @@ print("Anime Rangers X Script has been loaded and optimized!")
 -- Biến lưu trạng thái Webhook
 local webhookURL = ConfigSystem.CurrentConfig.WebhookURL or ""
 local autoSendWebhookEnabled = ConfigSystem.CurrentConfig.AutoSendWebhook or false
-local webhookEmbedEnabled = ConfigSystem.CurrentConfig.WebhookEmbed or true
 local webhookSentLog = {} -- Lưu trữ log các lần đã gửi để tránh gửi lặp lại
 
 -- Hàm lấy thông tin phần thưởng
@@ -3637,8 +3635,12 @@ local function createEmbed(rewards, gameInfo)
         description = "Thông tin về trận đấu vừa kết thúc",
         color = 5793266, -- Màu tím
         fields = fields,
+        thumbnail = {
+            url = "https://media.discordapp.net/attachments/1321403790343274597/1364864770699821056/HT_HUB.png?ex=680b38df&is=6809e75f&hm=8a8272215b54db14974319f1745680390342942777e2fc291e38a4be4edf6fda&=&format=webp&quality=lossless&width=930&height=930" -- Logo HT Hub
+        },
         footer = {
-            text = "HT Hub | Anime Rangers X • " .. os.date("%x %X")
+            text = "HT Hub | Anime Rangers X • " .. os.date("%x %X"),
+            icon_url = "https://media.discordapp.net/attachments/1321403790343274597/1364864770699821056/HT_HUB.png?ex=680b38df&is=6809e75f&hm=8a8272215b54db14974319f1745680390342942777e2fc291e38a4be4edf6fda&=&format=webp&quality=lossless&width=930&height=930"
         },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
@@ -3665,39 +3667,11 @@ local function sendWebhook(rewards)
     -- Lấy thông tin trận đấu
     local gameInfo = getGameInfoText()
     
-    -- Chuẩn bị nội dung
-    local content, payload
-    
-    if webhookEmbedEnabled then
-        -- Sử dụng embed
-        local embed = createEmbed(rewards, gameInfo)
-        payload = game:GetService("HttpService"):JSONEncode({
-            embeds = {embed}
-        })
-    else
-        -- Sử dụng text thông thường
-        content = "📦 **Phần thưởng vừa nhận:**\n"
-        for _, r in ipairs(rewards) do
-            content = content .. "- " .. r.Name .. ": ``+" .. r.Amount .. "``\n"
-        end
-        
-        -- Thêm thông tin Account
-        local playerResources = getCurrentResources()
-        content = content .. "\n👤 **Account:**\n"
-        local mainResources = {"Level", "Gem", "Gold", "Egg"}
-        for _, resourceName in ipairs(mainResources) do
-            local value = playerResources[resourceName] or 0
-            content = content .. "- " .. resourceName .. ": ``" .. value .. "``\n"
-        end
-        
-        if gameInfo ~= "" then
-            content = content .. "\n📝 **Thông tin trận đấu:**\n" .. gameInfo
-        end
-        
-        payload = game:GetService("HttpService"):JSONEncode({
-            content = content
-        })
-    end
+    -- Sử dụng embed
+    local embed = createEmbed(rewards, gameInfo)
+    local payload = game:GetService("HttpService"):JSONEncode({
+        embeds = {embed}
+    })
     
     -- Gửi request
     local httpRequest = http_request or request or (syn and syn.request) or (fluxus and fluxus.request) or HttpPost
@@ -3775,31 +3749,6 @@ WebhookSection:AddInput("WebhookURLInput", {
             Content = "Đã cập nhật URL webhook",
             Duration = 2
         })
-    end
-})
-
--- Toggle Embed
-WebhookSection:AddToggle("WebhookEmbedToggle", {
-    Title = "Sử dụng Embed",
-    Default = webhookEmbedEnabled,
-    Callback = function(Value)
-        webhookEmbedEnabled = Value
-        ConfigSystem.CurrentConfig.WebhookEmbed = Value
-        ConfigSystem.SaveConfig()
-        
-        if Value then
-            Fluent:Notify({
-                Title = "Webhook Embed",
-                Content = "Đã bật chế độ Embed cho Webhook",
-                Duration = 2
-            })
-        else
-            Fluent:Notify({
-                Title = "Webhook Embed",
-                Content = "Đã tắt chế độ Embed cho Webhook",
-                Duration = 2
-            })
-        end
     end
 })
 
