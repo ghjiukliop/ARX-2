@@ -3576,7 +3576,7 @@ local function getGameInfoText()
             for _, labelName in ipairs(labels) do
                 local label = leftSide:FindFirstChild(labelName)
                 if label and label:IsA("TextLabel") then
-                    table.insert(infoLines, "-" .. labelName .. ": " .. label.Text)
+                    table.insert(infoLines, "- " .. labelName .. ": " .. label.Text)
                 end
             end
         end
