@@ -348,6 +348,68 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
+-- Thêm chức năng kéo thả UI
+local function makeDraggable(ui)
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
+    
+    if ui.Frame then
+        -- Tìm phần header hoặc title bar của UI
+        local frame = ui.Frame
+        local header = frame:FindFirstChild("TabHeader") or frame:FindFirstChild("TitleBar") or frame
+        
+        -- Hàm xử lý khi bắt đầu kéo
+        local function updateInput(input)
+            local delta = input.Position - dragStart
+            local newPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            frame.Position = newPosition
+        end
+        
+        -- Bắt đầu kéo
+        header.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = frame.Position
+                
+                -- Bắt input và tiếp tục cập nhật vị trí
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+        
+        -- Xử lý thay đổi input khi đang kéo
+        header.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+        
+        -- Kết thúc kéo
+        header.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+                dragInput = nil
+            end
+        end)
+        
+        -- Cập nhật khi di chuyển
+        game:GetService("UserInputService").InputChanged:Connect(function(input)
+            if input == dragInput and dragging then
+                updateInput(input)
+            end
+        end)
+    end
+end
+
+-- Kích hoạt tính năng kéo thả cho UI
+makeDraggable(Window)
+
 -- Tạo tab Info
 local InfoTab = Window:AddTab({
     Title = "Info",
@@ -3793,47 +3855,3 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
-
--- Example of making a UI draggable
-local UserInputService = game:GetService("UserInputService")
-local gui = script.Parent -- Assuming the script is a child of the UI element
-
-local dragging
-local dragInput
-local dragStart
-local startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-local function onInputBegan(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = gui.Position
-
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end
-
-local function onInputChanged(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end
-
-UserInputService.InputBegan:Connect(onInputBegan)
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
-    end
-end)
-
--- Connect the input changed event
-UserInputService.InputChanged:Connect(onInputChanged)
