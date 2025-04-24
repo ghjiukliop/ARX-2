@@ -3607,6 +3607,10 @@ local function createEmbed(rewards, gameInfo)
     local playerResources = getCurrentResources()
     local statsText = ""
     
+    -- Thêm tên người chơi
+    local playerName = game:GetService("Players").LocalPlayer.Name
+    statsText = "- Name: " .. playerName .. "\n"
+    
     -- Luôn hiển thị các tài nguyên chính: Level, Gem, Gold, Egg
     local mainResources = {"Level", "Gem", "Gold", "Egg"}
     for _, resourceName in ipairs(mainResources) do
