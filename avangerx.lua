@@ -356,9 +356,7 @@ local function makeDraggable(ui)
     local startPos
     
     if ui.Frame then
-        -- Tìm phần header hoặc title bar của UI
         local frame = ui.Frame
-        local header = frame:FindFirstChild("TabHeader") or frame:FindFirstChild("TitleBar") or frame
         
         -- Hàm xử lý khi bắt đầu kéo
         local function updateInput(input)
@@ -367,8 +365,8 @@ local function makeDraggable(ui)
             frame.Position = newPosition
         end
         
-        -- Bắt đầu kéo
-        header.InputBegan:Connect(function(input)
+        -- Bắt đầu kéo - áp dụng cho toàn bộ UI thay vì chỉ header
+        frame.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = input.Position
@@ -384,14 +382,14 @@ local function makeDraggable(ui)
         end)
         
         -- Xử lý thay đổi input khi đang kéo
-        header.InputChanged:Connect(function(input)
+        frame.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                 dragInput = input
             end
         end)
         
         -- Kết thúc kéo
-        header.InputEnded:Connect(function(input)
+        frame.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = false
                 dragInput = nil
