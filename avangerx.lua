@@ -9,9 +9,9 @@ if currentPlaceId ~= allowedPlaceId then
     return
 end
 
--- Delay 20 giây trước khi mở script
-print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 20 giây...")
-wait(20)
+-- Delay 30 giây trước khi mở script
+print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 15 giây...")
+wait(30)
 print("Đang tải script...")
 
 -- Tải thư viện Fluent từ Arise
@@ -3793,3 +3793,47 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
+
+-- Example of making a UI draggable
+local UserInputService = game:GetService("UserInputService")
+local gui = script.Parent -- Assuming the script is a child of the UI element
+
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+local function onInputBegan(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = gui.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end
+
+local function onInputChanged(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end
+
+UserInputService.InputBegan:Connect(onInputBegan)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- Connect the input changed event
+UserInputService.InputChanged:Connect(onInputChanged)
