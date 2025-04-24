@@ -155,7 +155,12 @@ ConfigSystem.DefaultConfig = {
     AntiAFK = true, -- Mặc định bật
     
     -- Cài đặt Auto Leave
-    AutoLeave = false
+    AutoLeave = false,
+    
+    -- Cài đặt Webhook
+    WebhookURL = "",
+    AutoSendWebhook = false,
+    WebhookEmbed = true
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -378,6 +383,12 @@ local ShopTab = Window:AddTab({
 local SettingsTab = Window:AddTab({
     Title = "Settings",
     Icon = "rbxassetid://6031280882"
+})
+
+-- Tạo tab Webhook
+local WebhookTab = Window:AddTab({
+    Title = "Webhook",
+    Icon = "rbxassetid://7734058803"
 })
 
 -- Tạo logo UI để mở lại khi đã thu nhỏ
@@ -3464,3 +3475,326 @@ Fluent:Notify({
 })
 
 print("Anime Rangers X Script has been loaded and optimized!")
+
+-- Biến lưu trạng thái Webhook
+local webhookURL = ConfigSystem.CurrentConfig.WebhookURL or ""
+local autoSendWebhookEnabled = ConfigSystem.CurrentConfig.AutoSendWebhook or false
+local webhookEmbedEnabled = ConfigSystem.CurrentConfig.WebhookEmbed or true
+local webhookSentLog = {} -- Lưu trữ log các lần đã gửi để tránh gửi lặp lại
+
+-- Hàm lấy thông tin phần thưởng
+local function getRewards()
+    local player = game:GetService("Players").LocalPlayer
+    local rewardsShow = player:FindFirstChild("RewardsShow")
+    local result = {}
+    
+    if rewardsShow then
+        for _, folder in ipairs(rewardsShow:GetChildren()) do
+            local amount = folder:FindFirstChild("Amount")
+            table.insert(result, {
+                Name = folder.Name,
+                Amount = (amount and amount.Value) or 0
+            })
+        end
+    end
+    
+    return result
+end
+
+-- Hàm lấy thông tin trận đấu
+local function getGameInfoText()
+    local player = game:GetService("Players").LocalPlayer
+    local rewardsUI = player:WaitForChild("PlayerGui", 1):FindFirstChild("RewardsUI")
+    local infoLines = {}
+    
+    if rewardsUI then
+        local leftSide = rewardsUI:FindFirstChild("Main") and rewardsUI.Main:FindFirstChild("LeftSide")
+        if leftSide then
+            local labels = {
+                "GameStatus",
+                "Chapter",
+                "Difficulty",
+                "Mode",
+                "TotalTime",
+                "World"
+            }
+            
+            for _, labelName in ipairs(labels) do
+                local label = leftSide:FindFirstChild(labelName)
+                if label and label:IsA("TextLabel") then
+                    table.insert(infoLines, "**" .. labelName .. "**: " .. label.Text)
+                end
+            end
+        end
+    end
+    
+    return table.concat(infoLines, "\n")
+end
+
+-- Hàm tạo nội dung embed
+local function createEmbed(rewards, gameInfo)
+    local fields = {}
+    
+    -- Thêm trường phần thưởng
+    local rewardText = ""
+    for _, r in ipairs(rewards) do
+        rewardText = rewardText .. "- " .. r.Name .. ": " .. r.Amount .. "\n"
+    end
+    
+    if rewardText ~= "" then
+        table.insert(fields, {
+            name = "📦 Phần thưởng vừa nhận",
+            value = rewardText,
+            inline = false
+        })
+    end
+    
+    -- Thêm trường thông tin trận đấu
+    if gameInfo ~= "" then
+        table.insert(fields, {
+            name = "📝 Thông tin trận đấu",
+            value = gameInfo,
+            inline = false
+        })
+    end
+    
+    -- Tạo embed
+    local embed = {
+        title = "Anime Rangers X - Kết quả trận đấu",
+        description = "Thông tin về trận đấu vừa kết thúc",
+        color = 5793266, -- Màu tím
+        fields = fields,
+        footer = {
+            text = "HT Hub | Anime Rangers X"
+        },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+    
+    return embed
+end
+
+-- Hàm gửi webhook
+local function sendWebhook(rewards)
+    -- Kiểm tra URL webhook
+    if webhookURL == "" then
+        warn("URL webhook trống, không thể gửi thông tin")
+        return false
+    end
+    
+    -- Tạo ID cho lần gửi này
+    local gameId = os.time() .. "_" .. math.random(1000, 9999)
+    
+    -- Kiểm tra nếu đã gửi trước đó
+    if webhookSentLog[gameId] then
+        return false
+    end
+    
+    -- Lấy thông tin trận đấu
+    local gameInfo = getGameInfoText()
+    
+    -- Chuẩn bị nội dung
+    local content, payload
+    
+    if webhookEmbedEnabled then
+        -- Sử dụng embed
+        local embed = createEmbed(rewards, gameInfo)
+        payload = game:GetService("HttpService"):JSONEncode({
+            embeds = {embed}
+        })
+    else
+        -- Sử dụng text thông thường
+        content = "📦 **Phần thưởng vừa nhận:**\n"
+        for _, r in ipairs(rewards) do
+            content = content .. "- " .. r.Name .. ": ``" .. r.Amount .. "``\n"
+        end
+        
+        if gameInfo ~= "" then
+            content = content .. "\n📝 **Thông tin trận đấu:**\n" .. gameInfo
+        end
+        
+        payload = game:GetService("HttpService"):JSONEncode({
+            content = content
+        })
+    end
+    
+    -- Gửi request
+    local httpRequest = http_request or request or (syn and syn.request) or (fluxus and fluxus.request) or HttpPost
+    if not httpRequest then
+        warn("Không tìm thấy hàm gửi HTTP request tương thích.")
+        return false
+    end
+    
+    local success, response = pcall(function()
+        return httpRequest({
+            Url = webhookURL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = payload
+        })
+    end)
+    
+    if success then
+        print("Đã gửi phần thưởng và thông tin game qua webhook!")
+        webhookSentLog[gameId] = true
+        return true
+    else
+        warn("Gửi webhook thất bại:", response)
+        return false
+    end
+end
+
+-- Thiết lập vòng lặp kiểm tra game kết thúc và gửi webhook
+local function setupWebhookMonitor()
+    spawn(function()
+        while wait(2) do
+            if not autoSendWebhookEnabled then
+                wait(1)
+            else
+                -- Chỉ kiểm tra nếu đang ở trong map
+                if isPlayerInMap() then
+                    local player = game:GetService("Players").LocalPlayer
+                    local agentFolder = workspace:FindFirstChild("Agent") and workspace.Agent:FindFirstChild("Agent")
+                    local rewardsShow = player:FindFirstChild("RewardsShow")
+                    
+                    -- Kiểm tra điều kiện kết thúc game
+                    if agentFolder and #agentFolder:GetChildren() == 0 and rewardsShow then
+                        local rewards = getRewards()
+                        if #rewards > 0 then
+                            sendWebhook(rewards)
+                            -- Đợi một thời gian để không gửi lặp lại
+                            wait(10)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Thêm section Webhook trong tab Webhook
+local WebhookSection = WebhookTab:AddSection("Discord Webhook")
+
+-- Thêm input để nhập URL webhook
+WebhookSection:AddInput("WebhookURLInput", {
+    Title = "Webhook URL",
+    Default = webhookURL,
+    Placeholder = "Nhập URL webhook Discord của bạn",
+    Numeric = false,
+    Finished = true,
+    Callback = function(Value)
+        webhookURL = Value
+        ConfigSystem.CurrentConfig.WebhookURL = Value
+        ConfigSystem.SaveConfig()
+        
+        Fluent:Notify({
+            Title = "Webhook URL",
+            Content = "Đã cập nhật URL webhook",
+            Duration = 2
+        })
+    end
+})
+
+-- Toggle Embed
+WebhookSection:AddToggle("WebhookEmbedToggle", {
+    Title = "Sử dụng Embed",
+    Default = webhookEmbedEnabled,
+    Callback = function(Value)
+        webhookEmbedEnabled = Value
+        ConfigSystem.CurrentConfig.WebhookEmbed = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            Fluent:Notify({
+                Title = "Webhook Embed",
+                Content = "Đã bật chế độ Embed cho Webhook",
+                Duration = 2
+            })
+        else
+            Fluent:Notify({
+                Title = "Webhook Embed",
+                Content = "Đã tắt chế độ Embed cho Webhook",
+                Duration = 2
+            })
+        end
+    end
+})
+
+-- Toggle Auto SendWebhook
+WebhookSection:AddToggle("AutoSendWebhookToggle", {
+    Title = "Auto Send Webhook",
+    Default = autoSendWebhookEnabled,
+    Callback = function(Value)
+        autoSendWebhookEnabled = Value
+        ConfigSystem.CurrentConfig.AutoSendWebhook = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            -- Kiểm tra URL webhook
+            if webhookURL == "" then
+                Fluent:Notify({
+                    Title = "Auto Send Webhook",
+                    Content = "URL webhook trống! Vui lòng nhập URL webhook trước khi bật tính năng này.",
+                    Duration = 3
+                })
+                return
+            end
+            
+            Fluent:Notify({
+                Title = "Auto Send Webhook",
+                Content = "Auto Send Webhook đã được bật. Thông tin trận đấu sẽ tự động gửi khi game kết thúc.",
+                Duration = 3
+            })
+        else
+            Fluent:Notify({
+                Title = "Auto Send Webhook",
+                Content = "Auto Send Webhook đã được tắt",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Nút Test Webhook
+WebhookSection:AddButton({
+    Title = "Test Webhook",
+    Callback = function()
+        -- Kiểm tra URL webhook
+        if webhookURL == "" then
+            Fluent:Notify({
+                Title = "Test Webhook",
+                Content = "URL webhook trống! Vui lòng nhập URL webhook trước khi test.",
+                Duration = 3
+            })
+            return
+        end
+        
+        -- Tạo dữ liệu test
+        local testRewards = {
+            {Name = "Gem", Amount = 100},
+            {Name = "Gold", Amount = 1000},
+            {Name = "EXP", Amount = 500}
+        }
+        
+        -- Gửi webhook test
+        local success = sendWebhook(testRewards)
+        
+        if success then
+            Fluent:Notify({
+                Title = "Test Webhook",
+                Content = "Đã gửi webhook test thành công!",
+                Duration = 3
+            })
+        else
+            Fluent:Notify({
+                Title = "Test Webhook",
+                Content = "Gửi webhook test thất bại! Kiểm tra lại URL và quyền truy cập.",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Khởi động vòng lặp kiểm tra game kết thúc
+setupWebhookMonitor()
