@@ -3568,17 +3568,17 @@ local function getGameInfoText()
         if leftSide then
             local labels = {
                 "GameStatus",
+                "Mode",
+                "World",
                 "Chapter",
                 "Difficulty",
-                "Mode",
-                "TotalTime",
-                "World"
+                "TotalTime"
             }
             
             for _, labelName in ipairs(labels) do
                 local label = leftSide:FindFirstChild(labelName)
                 if label and label:IsA("TextLabel") then
-                    table.insert(infoLines, "**" .. labelName .. "**: " .. label.Text)
+                    table.insert(infoLines, "-" .. labelName .. ": " .. label.Text)
                 end
             end
         end
