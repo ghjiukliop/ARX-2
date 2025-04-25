@@ -1336,12 +1336,6 @@ end
 
 -- Hàm để tự động tham gia Ranger Stage
 local function joinRangerStage()
-    -- Kiểm tra xem người chơi đã ở trong map chưa
-    if isPlayerInMap() then
-        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
-        return false
-    end
-    
     -- Cập nhật danh sách Acts đã sắp xếp
     updateOrderedActs()
     
@@ -1431,27 +1425,15 @@ local function cycleRangerStages()
         return
     end
     
-    -- Kiểm tra chế độ game hiện tại trước khi đợi
-    if isCurrentModeRangerStage() then
-        print("Đang ở chế độ Ranger Stage, bỏ qua Auto Join")
-        return
-    end
-    
     -- Đợi theo time delay 
     wait(rangerTimeDelay)
     
-    -- Kiểm tra lại điều kiện sau khi đợi (chỉ kiểm tra nếu tính năng còn bật)
+    -- Kiểm tra lại điều kiện sau khi đợi
     if not autoJoinRangerEnabled then
         return
     end
     
-    -- Kiểm tra lại chế độ game sau khi đợi
-    if isCurrentModeRangerStage() then
-        print("Đang ở chế độ Ranger Stage sau khi đợi, bỏ qua Auto Join")
-        return
-    end
-    
-    -- Join Ranger Stage với Act theo thứ tự luân phiên (hàm joinRangerStage vẫn có kiểm tra isPlayerInMap())
+    -- Join Ranger Stage với Act theo thứ tự luân phiên
     joinRangerStage()
 end
 
@@ -1603,30 +1585,33 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 return
             end
             
-            -- Bỏ qua kiểm tra isPlayerInMap()
-            Fluent:Notify({
-                Title = "Auto Join Ranger Stage",
-                Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
-                Duration = 3
-            })
-            
-            -- Thực hiện join Ranger Stage sau thời gian delay
-            spawn(function()
-                wait(rangerTimeDelay)
-                if autoJoinRangerEnabled then
-                    -- Kiểm tra chế độ game trước khi join lần đầu
-                    if not isCurrentModeRangerStage() then
+            -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
+            if isPlayerInMap() then
+                Fluent:Notify({
+                    Title = "Auto Join Ranger Stage",
+                    Content = "Đang ở trong map, Auto Join Ranger sẽ hoạt động khi bạn rời khỏi map",
+                    Duration = 3
+                })
+            else
+                Fluent:Notify({
+                    Title = "Auto Join Ranger Stage",
+                    Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
+                    Duration = 3
+                })
+                
+                -- Thực hiện join Ranger Stage sau thời gian delay
+                spawn(function()
+                    wait(rangerTimeDelay)
+                    if autoJoinRangerEnabled then
                         joinRangerStage()
-                    else
-                        print("Đang ở chế độ Ranger Stage, bỏ qua lần join đầu tiên")
                     end
-                end
-            end)
+                end)
+            end
             
             -- Tạo vòng lặp Auto Join Ranger Stage
             spawn(function()
                 while autoJoinRangerEnabled and wait(10) do -- Thử join map mỗi 10 giây
-                    -- Gọi hàm cycleRangerStages để luân phiên các Acts (đã bỏ kiểm tra isPlayerInMap() bên trong)
+                    -- Gọi hàm cycleRangerStages để luân phiên các Acts
                     cycleRangerStages()
                 end
             end)
@@ -3797,44 +3782,22 @@ WebhookSection:AddButton({
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
 
--- Hàm kiểm tra chế độ game hiện tại
-local function isCurrentModeRangerStage()
-    local gamemodeValue = safeGetPath(game:GetService("ReplicatedStorage"), {"Values", "Game", "Gamemode"}, 0.5)
+-- Toggle Auto Join Ranger Stage
+local function toggleAutoJoinRanger()
+    autoJoinRanger = not autoJoinRanger
+    updateButtonColor(AutoJoinRangerBtn, autoJoinRanger)
     
-    if gamemodeValue and gamemodeValue:IsA("StringValue") then
-        return gamemodeValue.Value == "Ranger Stage"
+    if autoJoinRanger then
+        spawn(function()
+            while autoJoinRanger do
+                if not joinRangerStage() then
+                    -- Nếu join thất bại, đợi một khoảng thời gian ngắn rồi thử lại
+                    wait(5)
+                else
+                    -- Join thành công, đợi lâu hơn trước khi thử lại
+                    wait(30)
+                end
+            end
+        end)
     end
-    
-    -- Nếu không tìm thấy hoặc không đúng loại, giả sử không phải Ranger Stage
-    return false
-end
-
--- Hàm để lặp qua các selected Acts
-local function cycleRangerStages()
-    if not autoJoinRangerEnabled then
-        return
-    end
-    
-    -- Kiểm tra chế độ game hiện tại trước khi đợi
-    if isCurrentModeRangerStage() then
-        print("Đang ở chế độ Ranger Stage, bỏ qua Auto Join")
-        return
-    end
-    
-    -- Đợi theo time delay 
-    wait(rangerTimeDelay)
-    
-    -- Kiểm tra lại điều kiện sau khi đợi (chỉ kiểm tra nếu tính năng còn bật)
-    if not autoJoinRangerEnabled then
-        return
-    end
-    
-    -- Kiểm tra lại chế độ game sau khi đợi
-    if isCurrentModeRangerStage() then
-        print("Đang ở chế độ Ranger Stage sau khi đợi, bỏ qua Auto Join")
-        return
-    end
-    
-    -- Join Ranger Stage với Act theo thứ tự luân phiên (hàm joinRangerStage vẫn có kiểm tra isPlayerInMap())
-    joinRangerStage()
 end
