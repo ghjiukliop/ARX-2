@@ -215,16 +215,16 @@ ConfigSystem.LoadConfig = function()
                 end
             end
             
-            ConfigSystem.CurrentConfig = data
-            return true
+        ConfigSystem.CurrentConfig = data
+        return true
         end
     end
     
     -- Nếu tải thất bại, sử dụng cấu hình mặc định
-    ConfigSystem.CurrentConfig = table.clone(ConfigSystem.DefaultConfig)
-    ConfigSystem.SaveConfig()
-    return false
-end
+        ConfigSystem.CurrentConfig = table.clone(ConfigSystem.DefaultConfig)
+        ConfigSystem.SaveConfig()
+        return false
+    end
 
 -- Thiết lập timer để lưu định kỳ nếu có thay đổi chưa lưu
 spawn(function()
@@ -232,7 +232,7 @@ spawn(function()
         if ConfigSystem.PendingSave then
             ConfigSystem.SaveConfig()
         end
-    end
+end
 end)
 
 -- Tải cấu hình khi khởi động
@@ -1183,13 +1183,13 @@ setupSaveEvents()
 -- Khởi tạo các vòng lặp tối ưu
 local function setupOptimizedLoops()
     -- Vòng lặp kiểm tra Auto Scan Units - sử dụng lại cho nhiều tính năng
-    spawn(function()
+        spawn(function()
         while wait(3) do
             -- Scan units nếu đang trong map và tính năng Auto Scan được bật
             if autoScanUnitsEnabled and isPlayerInMap() then
                 scanUnits()
-            end
-            
+    end
+    
             -- Kiểm tra và lưu cấu hình nếu có thay đổi
             if ConfigSystem.PendingSave then
                 ConfigSystem.SaveConfig()
@@ -1198,7 +1198,7 @@ local function setupOptimizedLoops()
     end)
     
     -- Vòng lặp quản lý tham gia map và events
-    spawn(function()
+        spawn(function()
         -- Đợi một chút để script khởi động hoàn tất
         wait(5)
         
@@ -1223,11 +1223,11 @@ local function setupOptimizedLoops()
                 
                 -- Kiểm tra Auto Boss Event
                 if autoBossEventEnabled and not shouldContinue then
-                    joinBossEvent()
+                joinBossEvent()
                     wait(5)
                     shouldContinue = isPlayerInMap()
-                end
-                
+    end
+    
                 -- Kiểm tra Auto Challenge
                 if autoChallengeEnabled and not shouldContinue then
                     joinChallenge()
@@ -1245,7 +1245,7 @@ local function setupOptimizedLoops()
                 -- Kiểm tra Auto Join AFK nếu không áp dụng các tính năng trên
                 if autoJoinAFKEnabled and not shouldContinue and not isPlayerInMap() then
                     joinAFKWorld()
-                end
+            end
             else
                 -- Đang ở trong map, kiểm tra tính năng Auto Update Units
                 if autoUpdateEnabled then
@@ -1427,19 +1427,31 @@ end
 
 -- Hàm để lặp qua các selected Acts
 local function cycleRangerStages()
-    if not autoJoinRangerEnabled or isPlayerInMap() then
+    if not autoJoinRangerEnabled then
+        return
+    end
+    
+    -- Kiểm tra chế độ game hiện tại trước khi đợi
+    if isCurrentModeRangerStage() then
+        print("Đang ở chế độ Ranger Stage, bỏ qua Auto Join")
         return
     end
     
     -- Đợi theo time delay 
     wait(rangerTimeDelay)
     
-    -- Kiểm tra lại điều kiện sau khi đợi
-    if not autoJoinRangerEnabled or isPlayerInMap() then
+    -- Kiểm tra lại điều kiện sau khi đợi (chỉ kiểm tra nếu tính năng còn bật)
+    if not autoJoinRangerEnabled then
         return
     end
     
-    -- Join Ranger Stage với Act theo thứ tự luân phiên
+    -- Kiểm tra lại chế độ game sau khi đợi
+    if isCurrentModeRangerStage() then
+        print("Đang ở chế độ Ranger Stage sau khi đợi, bỏ qua Auto Join")
+        return
+    end
+    
+    -- Join Ranger Stage với Act theo thứ tự luân phiên (hàm joinRangerStage vẫn có kiểm tra isPlayerInMap())
     joinRangerStage()
 end
 
@@ -1495,8 +1507,8 @@ RangerSection:AddDropdown("ActDropdown", {
         for act, isSelected in pairs(Values) do
             if isSelected then
                 selectedActsText = selectedActsText .. act .. ", "
-                
-                -- Thay đổi act khi người dùng chọn
+        
+        -- Thay đổi act khi người dùng chọn
                 changeAct(selectedRangerMap, act)
                 print("Đã chọn act: " .. act)
                 wait(0.5) -- Đợi 0.5 giây giữa các lần gửi để tránh lỗi
@@ -1591,40 +1603,31 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 return
             end
             
-            -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
-            if isPlayerInMap() then
-                Fluent:Notify({
-                    Title = "Auto Join Ranger Stage",
-                    Content = "Đang ở trong map, Auto Join Ranger sẽ hoạt động khi bạn rời khỏi map",
-                    Duration = 3
-                })
-            else
-                Fluent:Notify({
-                    Title = "Auto Join Ranger Stage",
-                    Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
-                    Duration = 3
-                })
-                
-                -- Thực hiện join Ranger Stage sau thời gian delay
-                spawn(function()
-                    wait(rangerTimeDelay)
-                    if autoJoinRangerEnabled and not isPlayerInMap() then
+            -- Bỏ qua kiểm tra isPlayerInMap()
+            Fluent:Notify({
+                Title = "Auto Join Ranger Stage",
+                Content = "Auto Join Ranger Stage đã được bật, sẽ bắt đầu sau " .. rangerTimeDelay .. " giây",
+                Duration = 3
+            })
+            
+            -- Thực hiện join Ranger Stage sau thời gian delay
+            spawn(function()
+                wait(rangerTimeDelay)
+                if autoJoinRangerEnabled then
+                    -- Kiểm tra chế độ game trước khi join lần đầu
+                    if not isCurrentModeRangerStage() then
                         joinRangerStage()
+                    else
+                        print("Đang ở chế độ Ranger Stage, bỏ qua lần join đầu tiên")
                     end
-                end)
-            end
+                end
+            end)
             
             -- Tạo vòng lặp Auto Join Ranger Stage
             spawn(function()
                 while autoJoinRangerEnabled and wait(10) do -- Thử join map mỗi 10 giây
-                    -- Chỉ thực hiện join map nếu người chơi không ở trong map
-                    if not isPlayerInMap() then
-                        -- Gọi hàm cycleRangerStages để luân phiên các Acts
-                        cycleRangerStages()
-                    else
-                        -- Người chơi đang ở trong map, không cần join
-                        print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
-                    end
+                    -- Gọi hàm cycleRangerStages để luân phiên các Acts (đã bỏ kiểm tra isPlayerInMap() bên trong)
+                    cycleRangerStages()
                 end
             end)
         else
@@ -2455,30 +2458,30 @@ InGameSection:AddToggle("AutoVoteToggle", {
 
 -- Hàm để scan unit trong UnitsFolder
 local function scanUnits()
-    -- Lấy UnitsFolder
-    local player = game:GetService("Players").LocalPlayer
-    if not player then
+        -- Lấy UnitsFolder
+        local player = game:GetService("Players").LocalPlayer
+        if not player then
         return false
-    end
-    
-    local unitsFolder = player:FindFirstChild("UnitsFolder")
-    if not unitsFolder then
+        end
+        
+        local unitsFolder = player:FindFirstChild("UnitsFolder")
+        if not unitsFolder then
         return false
-    end
-    
-    -- Lấy danh sách unit theo thứ tự
-    unitSlots = {}
+        end
+        
+        -- Lấy danh sách unit theo thứ tự
+        unitSlots = {}
     local children = unitsFolder:GetChildren()
     for i, unit in ipairs(children) do
         if (unit:IsA("Folder") or unit:IsA("Model")) and i <= 6 then -- Giới hạn 6 slot
-            unitSlots[i] = unit
+                unitSlots[i] = unit
             -- Không in log để giảm spam
+            end
         end
+        
+        return #unitSlots > 0
     end
     
-    return #unitSlots > 0
-end
-
 -- Hàm để nâng cấp unit tối ưu
 local function upgradeUnit(unit)
     if not unit then
@@ -2658,17 +2661,17 @@ end
 
 -- Tối ưu hóa hàm tham gia AFK World
 local function joinAFKWorld()
-    -- Kiểm tra nếu người chơi đã ở AFKWorld
-    if checkAFKWorldState() then
+        -- Kiểm tra nếu người chơi đã ở AFKWorld
+        if checkAFKWorldState() then
         return true
-    end
-    
+        end
+        
     -- Lấy remote và gửi yêu cầu
     local afkTeleportRemote = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "Lobby", "AFKWorldTeleport"}, 0.5)
     if not afkTeleportRemote then
-        warn("Không tìm thấy Remote AFKWorldTeleport")
+            warn("Không tìm thấy Remote AFKWorldTeleport")
         return false
-    end
+        end
     
     afkTeleportRemote:FireServer()
     return true
@@ -2910,11 +2913,11 @@ local function removeAnimations()
     local success, err = pcall(function()
         -- Xóa UIS.Packages.Transition.Flash từ ReplicatedStorage
         local uis = game:GetService("ReplicatedStorage"):FindFirstChild("UIS")
-        if uis then
-            local packages = uis:FindFirstChild("Packages")
-            if packages then
-                local transition = packages:FindFirstChild("Transition")
-                if transition then
+            if uis then
+                local packages = uis:FindFirstChild("Packages")
+                if packages then
+                    local transition = packages:FindFirstChild("Transition")
+                    if transition then
                     local flash = transition:FindFirstChild("Flash")
                     if flash then
                         flash:Destroy()
@@ -3793,3 +3796,45 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
+
+-- Hàm kiểm tra chế độ game hiện tại
+local function isCurrentModeRangerStage()
+    local gamemodeValue = safeGetPath(game:GetService("ReplicatedStorage"), {"Values", "Game", "Gamemode"}, 0.5)
+    
+    if gamemodeValue and gamemodeValue:IsA("StringValue") then
+        return gamemodeValue.Value == "Ranger Stage"
+    end
+    
+    -- Nếu không tìm thấy hoặc không đúng loại, giả sử không phải Ranger Stage
+    return false
+end
+
+-- Hàm để lặp qua các selected Acts
+local function cycleRangerStages()
+    if not autoJoinRangerEnabled then
+        return
+    end
+    
+    -- Kiểm tra chế độ game hiện tại trước khi đợi
+    if isCurrentModeRangerStage() then
+        print("Đang ở chế độ Ranger Stage, bỏ qua Auto Join")
+        return
+    end
+    
+    -- Đợi theo time delay 
+    wait(rangerTimeDelay)
+    
+    -- Kiểm tra lại điều kiện sau khi đợi (chỉ kiểm tra nếu tính năng còn bật)
+    if not autoJoinRangerEnabled then
+        return
+    end
+    
+    -- Kiểm tra lại chế độ game sau khi đợi
+    if isCurrentModeRangerStage() then
+        print("Đang ở chế độ Ranger Stage sau khi đợi, bỏ qua Auto Join")
+        return
+    end
+    
+    -- Join Ranger Stage với Act theo thứ tự luân phiên (hàm joinRangerStage vẫn có kiểm tra isPlayerInMap())
+    joinRangerStage()
+end
