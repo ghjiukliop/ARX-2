@@ -191,7 +191,7 @@ KeySystem.CreateKeyUI = function()
     GetKeyButton.Position = UDim2.new(0.5, -75, 0, 200)
     GetKeyButton.Size = UDim2.new(0, 150, 0, 35)
     GetKeyButton.Font = Enum.Font.GothamBold
-    GetKeyButton.Text = "Lấy key mới"
+    GetKeyButton.Text = "Lấy key tại discord"
     GetKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     GetKeyButton.TextSize = 14.000
     
@@ -261,7 +261,7 @@ KeySystem.CreateKeyUI = function()
     
     -- Xử lý sự kiện nút Get Key
     GetKeyButton.MouseButton1Click:Connect(function()
-        setclipboard("https://link-center.net/ht-hub-key")
+        setclipboard("https://discord.gg/6WXu2zZC3d")
         StatusLabel.Text = "Đã sao chép liên kết vào clipboard"
         StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     end)
@@ -628,7 +628,8 @@ local Window = Fluent:CreateWindow({
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
-    Theme = ConfigSystem.CurrentConfig.UITheme or "Dark"
+    Theme = ConfigSystem.CurrentConfig.UITheme or "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
 })
 
 -- Tạo tab Info
@@ -747,20 +748,42 @@ end
 local oldMinimize = Window.Minimize
 Window.Minimize = function()
     isMinimized = not isMinimized
-
+    
     -- Đảm bảo logo đã được tạo
     if not OpenUI then
         OpenUI = CreateLogoUI()
     end
-
+    
     -- Hiển thị/ẩn logo dựa vào trạng thái
     if OpenUI then
         OpenUI.Enabled = isMinimized
+        
+        -- Đảm bảo logo vẫn hiển thị (phòng trường hợp bị ẩn do lỗi)
+        if isMinimized then
+            spawn(function()
+                wait(0.5) -- Đợi một chút để đảm bảo UI đã được cập nhật
+                if OpenUI and isMinimized then
+                    OpenUI.Enabled = true
+                end
+            end)
+        end
     end
-
+    
     -- Gọi hàm minimize gốc
     pcall(function()
         oldMinimize()
+    end)
+    
+    -- Kiểm tra xem UI đã hiển thị đúng chưa sau khi minimize
+    spawn(function()
+        wait(0.5)
+        if isMinimized and OpenUI then
+            -- Đảm bảo logo hiển thị khi UI ẩn
+            OpenUI.Enabled = true
+        elseif not isMinimized and Window and Window.Frame then
+            -- Đảm bảo UI hiển thị khi không minimize
+            Window.Frame.Visible = true
+        end
     end)
 end
 
@@ -772,7 +795,12 @@ if not Window.Toggle then
     end
 end
 
-
+-- Bắt sự kiện phím để kích hoạt minimize
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.LeftControl then
+        Window.Minimize()
+    end
+end)
 
 -- Tự động chọn tab Info khi khởi động
 Window:SelectTab(1) -- Chọn tab đầu tiên (Info)
@@ -4049,15 +4077,3 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
--- Hiển thị logo ngay khi script chạy
-if not OpenUI then
-    OpenUI = CreateLogoUI()
-end
--- filepath: c:\Users\TUF\OneDrive\coding stuff\arx\arx not yet.lua
-if Window and Window.Frame and Window.Frame.MinimizeButton then
-    Window.Frame.MinimizeButton.Visible = false
-end
-
-if OpenUI then
-    OpenUI.Enabled = true -- Hiển thị logo ngay lập tức
-end
