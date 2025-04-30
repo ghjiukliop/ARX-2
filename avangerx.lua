@@ -298,7 +298,7 @@ print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 15 giây.
 wait(15)
 print("Đang tải script...")
 
--- Tải thư viện Fluent từ Arise
+-- Tải thư viện Fluent
 local success, err = pcall(function()
     Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
     SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
