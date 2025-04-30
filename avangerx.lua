@@ -9,9 +9,293 @@ if currentPlaceId ~= allowedPlaceId then
     return
 end
 
+-- Hệ thống xác thực key
+local KeySystem = {}
+KeySystem.Keys = {
+    "HT_ANIME_RANGERS_ACCESS_5723",  -- Key 1
+    "RANGER_PRO_ACCESS_9841",        -- Key 2
+    "PREMIUM_ANIME_ACCESS_3619"      -- Key 3
+}
+KeySystem.KeyFileName = "htkey_anime_rangers.txt"
+KeySystem.WebhookURL = "https://discord.com/api/webhooks/1348673902506934384/ZRMIlRzlQq9Hfnjgpu96GGF7jCG8mG1qqfya3ErW9YvbuIKOaXVomOgjg4tM_Xk57yAK" -- Thay bằng webhook của bạn
+
+-- Hàm kiểm tra key đã lưu
+KeySystem.CheckSavedKey = function()
+    if not isfile then
+        return false, "Executor của bạn không hỗ trợ isfile/readfile"
+    end
+    
+    if isfile(KeySystem.KeyFileName) then
+        local savedKey = readfile(KeySystem.KeyFileName)
+        for _, validKey in ipairs(KeySystem.Keys) do
+            if savedKey == validKey then
+                return true, "Key hợp lệ"
+            end
+        end
+        -- Nếu key không hợp lệ, xóa file
+        delfile(KeySystem.KeyFileName)
+    end
+    
+    return false, "Key không hợp lệ hoặc chưa được lưu"
+end
+
+-- Hàm lưu key
+KeySystem.SaveKey = function(key)
+    if not writefile then
+        return false, "Executor của bạn không hỗ trợ writefile"
+    end
+    
+    writefile(KeySystem.KeyFileName, key)
+    return true, "Đã lưu key"
+end
+
+-- Hàm gửi log đến webhook Discord
+KeySystem.SendWebhook = function(username, key, status)
+    if KeySystem.WebhookURL == "https://discord.com/api/webhooks/1348673902506934384/ZRMIlRzlQq9Hfnjgpu96GGF7jCG8mG1qqfya3ErW9YvbuIKOaXVomOgjg4tM_Xk57yAK" then
+        return -- Bỏ qua nếu webhook chưa được cấu hình
+    end
+    
+    local HttpService = game:GetService("HttpService")
+    local data = {
+        ["content"] = "",
+        ["embeds"] = {{
+            ["title"] = "Anime Rangers X Script - Key Log",
+            ["description"] = "Người dùng đã sử dụng script",
+            ["type"] = "rich",
+            ["color"] = status and 65280 or 16711680,
+            ["fields"] = {
+                {
+                    ["name"] = "Username",
+                    ["value"] = username,
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "Key Status",
+                    ["value"] = status and "Hợp lệ" or "Không hợp lệ",
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "Key Used",
+                    ["value"] = key ~= "" and key or "N/A",
+                    ["inline"] = true
+                }
+            },
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+    
+    local success, _ = pcall(function()
+        HttpService:PostAsync(KeySystem.WebhookURL, HttpService:JSONEncode(data))
+    end)
+    
+    return success
+end
+
+-- Tạo UI nhập key
+KeySystem.CreateKeyUI = function()
+    local success, keyValid = KeySystem.CheckSavedKey()
+    if success then
+        print("HT Hub | Key hợp lệ, đang tải script...")
+        KeySystem.SendWebhook(game.Players.LocalPlayer.Name, "Key đã lưu", true)
+        return true
+    end
+    
+    local ScreenGui = Instance.new("ScreenGui")
+    local Main = Instance.new("Frame")
+    local UICorner = Instance.new("UICorner")
+    local Title = Instance.new("TextLabel")
+    local Description = Instance.new("TextLabel")
+    local KeyInput = Instance.new("TextBox")
+    local UICorner_2 = Instance.new("UICorner")
+    local SubmitButton = Instance.new("TextButton")
+    local UICorner_3 = Instance.new("UICorner")
+    local GetKeyButton = Instance.new("TextButton")
+    local UICorner_4 = Instance.new("UICorner")
+    local StatusLabel = Instance.new("TextLabel")
+    
+    -- Thiết lập UI
+    if syn and syn.protect_gui then
+        syn.protect_gui(ScreenGui)
+        ScreenGui.Parent = game:GetService("CoreGui")
+    elseif gethui then
+        ScreenGui.Parent = gethui()
+    else
+        ScreenGui.Parent = game:GetService("CoreGui")
+    end
+    
+    ScreenGui.Name = "HTHubKeySystem"
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.ResetOnSpawn = false
+    
+    Main.Name = "Main"
+    Main.Parent = ScreenGui
+    Main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Main.Position = UDim2.new(0.5, -175, 0.5, -125)
+    Main.Size = UDim2.new(0, 350, 0, 250)
+    
+    UICorner.CornerRadius = UDim.new(0, 10)
+    UICorner.Parent = Main
+    
+    Title.Name = "Title"
+    Title.Parent = Main
+    Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Title.BackgroundTransparency = 1.000
+    Title.Position = UDim2.new(0, 0, 0, 10)
+    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.Font = Enum.Font.GothamBold
+    Title.Text = "HT Hub | Anime Rangers X"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 20.000
+    
+    Description.Name = "Description"
+    Description.Parent = Main
+    Description.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Description.BackgroundTransparency = 1.000
+    Description.Position = UDim2.new(0, 0, 0, 45)
+    Description.Size = UDim2.new(1, 0, 0, 40)
+    Description.Font = Enum.Font.Gotham
+    Description.Text = "Nhập key để sử dụng script"
+    Description.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Description.TextSize = 14.000
+    
+    KeyInput.Name = "KeyInput"
+    KeyInput.Parent = Main
+    KeyInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    KeyInput.Position = UDim2.new(0.5, -125, 0, 100)
+    KeyInput.Size = UDim2.new(0, 250, 0, 40)
+    KeyInput.Font = Enum.Font.Gotham
+    KeyInput.PlaceholderText = "Nhập key vào đây..."
+    KeyInput.Text = ""
+    KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeyInput.TextSize = 14.000
+    
+    UICorner_2.CornerRadius = UDim.new(0, 6)
+    UICorner_2.Parent = KeyInput
+    
+    SubmitButton.Name = "SubmitButton"
+    SubmitButton.Parent = Main
+    SubmitButton.BackgroundColor3 = Color3.fromRGB(90, 90, 255)
+    SubmitButton.Position = UDim2.new(0.5, -60, 0, 155)
+    SubmitButton.Size = UDim2.new(0, 120, 0, 35)
+    SubmitButton.Font = Enum.Font.GothamBold
+    SubmitButton.Text = "Xác nhận"
+    SubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SubmitButton.TextSize = 14.000
+    
+    UICorner_3.CornerRadius = UDim.new(0, 6)
+    UICorner_3.Parent = SubmitButton
+    
+    GetKeyButton.Name = "GetKeyButton"
+    GetKeyButton.Parent = Main
+    GetKeyButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    GetKeyButton.Position = UDim2.new(0.5, -75, 0, 200)
+    GetKeyButton.Size = UDim2.new(0, 150, 0, 35)
+    GetKeyButton.Font = Enum.Font.GothamBold
+    GetKeyButton.Text = "Lấy key mới"
+    GetKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    GetKeyButton.TextSize = 14.000
+    
+    UICorner_4.CornerRadius = UDim.new(0, 6)
+    UICorner_4.Parent = GetKeyButton
+    
+    StatusLabel.Name = "StatusLabel"
+    StatusLabel.Parent = Main
+    StatusLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    StatusLabel.BackgroundTransparency = 1.000
+    StatusLabel.Position = UDim2.new(0, 0, 0, 240)
+    StatusLabel.Size = UDim2.new(1, 0, 0, 20)
+    StatusLabel.Font = Enum.Font.Gotham
+    StatusLabel.Text = ""
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    StatusLabel.TextSize = 12.000
+    
+    -- Biến để theo dõi trạng thái xác thực
+    local keyAuthenticated = false
+    
+    -- Hàm xác thực key
+    local function checkKey(key)
+        for _, validKey in ipairs(KeySystem.Keys) do
+            if key == validKey then
+                return true
+            end
+        end
+        return false
+    end
+    
+    -- Xử lý sự kiện nút Submit
+    SubmitButton.MouseButton1Click:Connect(function()
+        local inputKey = KeyInput.Text
+        
+        if inputKey == "" then
+            StatusLabel.Text = "Vui lòng nhập key"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            return
+        end
+        
+        local isKeyValid = checkKey(inputKey)
+        
+        if isKeyValid then
+            StatusLabel.Text = "Key hợp lệ! Đang tải script..."
+            StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            
+            -- Lưu key
+            KeySystem.SaveKey(inputKey)
+            
+            -- Gửi log
+            KeySystem.SendWebhook(game.Players.LocalPlayer.Name, inputKey, true)
+            
+            -- Đánh dấu đã xác thực thành công
+            keyAuthenticated = true
+            
+            -- Xóa UI sau 1 giây
+            wait(1)
+            ScreenGui:Destroy()
+        else
+            StatusLabel.Text = "Key không hợp lệ, vui lòng thử lại"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            
+            -- Gửi log
+            KeySystem.SendWebhook(game.Players.LocalPlayer.Name, inputKey, false)
+        end
+    end)
+    
+    -- Xử lý sự kiện nút Get Key
+    GetKeyButton.MouseButton1Click:Connect(function()
+        setclipboard("https://link-center.net/ht-hub-key")
+        StatusLabel.Text = "Đã sao chép liên kết vào clipboard"
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+    
+    -- Đợi cho đến khi xác thực thành công hoặc đóng UI
+    local startTime = tick()
+    local timeout = 300 -- 5 phút timeout
+    
+    repeat
+        wait(0.1)
+    until keyAuthenticated or (tick() - startTime > timeout)
+    
+    if keyAuthenticated then
+        return true
+    else
+        -- Nếu hết thời gian chờ mà không xác thực, đóng UI và trả về false
+        if ScreenGui and ScreenGui.Parent then
+            ScreenGui:Destroy() 
+        end
+        return false
+    end
+end
+
+-- Khởi chạy hệ thống key
+local keyValid = KeySystem.CreateKeyUI()
+if not keyValid then
+    -- Nếu key không hợp lệ, dừng script
+    warn("Key không hợp lệ hoặc đã hết thời gian chờ. Script sẽ dừng.")
+    return
+end
+
 -- Delay 30 giây trước khi mở script
 print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 15 giây...")
-wait(30)
+wait(15)
 print("Đang tải script...")
 
 -- Tải thư viện Fluent từ Arise
@@ -1336,6 +1620,12 @@ end
 
 -- Hàm để tự động tham gia Ranger Stage
 local function joinRangerStage()
+    -- Kiểm tra xem người chơi đã ở trong map chưa
+    if isPlayerInMap() then
+        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
+        return false
+    end
+    
     -- Cập nhật danh sách Acts đã sắp xếp
     updateOrderedActs()
     
@@ -1421,7 +1711,7 @@ end
 
 -- Hàm để lặp qua các selected Acts
 local function cycleRangerStages()
-    if not autoJoinRangerEnabled then
+    if not autoJoinRangerEnabled or isPlayerInMap() then
         return
     end
     
@@ -1429,7 +1719,7 @@ local function cycleRangerStages()
     wait(rangerTimeDelay)
     
     -- Kiểm tra lại điều kiện sau khi đợi
-    if not autoJoinRangerEnabled then
+    if not autoJoinRangerEnabled or isPlayerInMap() then
         return
     end
     
@@ -1602,7 +1892,7 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 -- Thực hiện join Ranger Stage sau thời gian delay
                 spawn(function()
                     wait(rangerTimeDelay)
-                    if autoJoinRangerEnabled then
+                    if autoJoinRangerEnabled and not isPlayerInMap() then
                         joinRangerStage()
                     end
                 end)
@@ -1611,8 +1901,14 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
             -- Tạo vòng lặp Auto Join Ranger Stage
             spawn(function()
                 while autoJoinRangerEnabled and wait(10) do -- Thử join map mỗi 10 giây
-                    -- Gọi hàm cycleRangerStages để luân phiên các Acts
-                    cycleRangerStages()
+                    -- Chỉ thực hiện join map nếu người chơi không ở trong map
+                    if not isPlayerInMap() then
+                        -- Gọi hàm cycleRangerStages để luân phiên các Acts
+                        cycleRangerStages()
+                    else
+                        -- Người chơi đang ở trong map, không cần join
+                        print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
+                    end
                 end
             end)
         else
@@ -3781,23 +4077,3 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
-
--- Toggle Auto Join Ranger Stage
-local function toggleAutoJoinRanger()
-    autoJoinRanger = not autoJoinRanger
-    updateButtonColor(AutoJoinRangerBtn, autoJoinRanger)
-    
-    if autoJoinRanger then
-        spawn(function()
-            while autoJoinRanger do
-                if not joinRangerStage() then
-                    -- Nếu join thất bại, đợi một khoảng thời gian ngắn rồi thử lại
-                    wait(5)
-                else
-                    -- Join thành công, đợi lâu hơn trước khi thử lại
-                    wait(30)
-                end
-            end
-        end)
-    end
-end
