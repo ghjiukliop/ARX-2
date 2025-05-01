@@ -3920,3 +3920,18 @@ RangerSection:AddToggle("AutoJoinAllRangerToggle", {
         end
     end
 })
+
+-- Khởi động vòng lặp kiểm tra game kết thúc
+setupWebhookMonitor()
+
+-- Tự động ẩn UI nếu tính năng được bật (Sau khi mọi thứ đã load)
+spawn(function()
+    wait(2) -- Đợi thêm một chút để đảm bảo UI thực sự sẵn sàng
+    if Window and autoHideUIEnabled and not isMinimized then
+        print("Auto Hide UI đang bật, thực hiện ẩn UI khi khởi động...")
+        Window:Minimize()
+        print("UI đã được tự động ẩn. Nhấp vào logo để hiển thị lại.")
+    else
+        print("Auto Hide UI không bật hoặc UI đã ẩn, không thực hiện ẩn tự động.")
+    end
+end)
