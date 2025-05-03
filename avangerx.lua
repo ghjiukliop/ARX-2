@@ -462,6 +462,7 @@ ConfigSystem.DefaultConfig = {
     -- Cài đặt Webhook
     WebhookURL = "",
     AutoSendWebhook = false,
+    DeleteMap = false,
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -2909,9 +2910,9 @@ UISettingsSection:AddToggle("AutoHideUIToggle", {
             
             autoHideUITimer = spawn(function()
                 wait(1) -- Đợi 1 giây
-                if autoHideUIEnabled and not isMinimized then
-                    -- Tự động ẩn UI
-                    Window.Minimize()
+                -- Sử dụng Window.Visible thay vì isMinimized để kiểm tra
+                if autoHideUIEnabled and Window and Window.Visible then 
+                    Window:Minimize()
                 end
             end)
         else
@@ -2926,16 +2927,33 @@ UISettingsSection:AddToggle("AutoHideUIToggle", {
     end
 })
 
--- Tự động ẩn UI nếu tính năng được bật
+-- Tự động ẩn UI nếu tính năng được bật KHI KHỞI ĐỘNG SCRIPT
 spawn(function()
-    wait(1) -- Đợi script khởi động hoàn tất
-    
-    -- Nếu Auto Hide UI được bật và UI không ở trạng thái ẩn
-    if autoHideUIEnabled and not isMinimized then
-        -- Tự động ẩn UI
-        Window.Minimize()
-        
-        print("UI đã được tự động ẩn. Nhấp vào logo để hiển thị lại.")
+    print("AutoHideUI startup: Waiting for Window and game load...") -- Debug
+    -- Đợi cho đến khi Window được tạo và game load xong
+    while not Window or not game:IsLoaded() do wait(0.1) end
+    print("AutoHideUI startup: Window and game loaded.") -- Debug
+    wait(1.5) -- Tăng thời gian chờ lên 1.5 giây
+    print("AutoHideUI startup: Checking config...") -- Debug
+
+    -- Kiểm tra config và thực hiện minimize nếu cần
+    if ConfigSystem.CurrentConfig.AutoHideUI then
+        print("AutoHideUI startup: Config enabled. Attempting to minimize Window...") -- Debug
+        -- Kiểm tra kỹ Window và phương thức Minimize trước khi gọi
+        if Window and type(Window.Minimize) == 'function' then 
+            local success, err = pcall(function()
+                 Window:Minimize()
+            end)
+            if success then
+                 print("AutoHideUI startup: Window:Minimize() called successfully.") -- Debug
+            else
+                 print("AutoHideUI startup: Error calling Window:Minimize():", err) -- Debug
+            end
+        else
+             print("AutoHideUI startup: Error - Window object or Window.Minimize method not available or not a function.") -- Debug
+        end
+    else
+        print("AutoHideUI startup: Config disabled.") -- Debug
     end
 end)
 
@@ -3715,21 +3733,22 @@ WebhookSection:AddToggle("AutoSendWebhookToggle", {
             -- Kiểm tra URL webhook
             if webhookURL == "" then
                 print("URL webhook trống! Vui lòng nhập URL webhook trước khi bật tính năng này.")
+                -- Trả về toggle về trạng thái tắt
+                WebhookSection:GetComponent("AutoSendWebhookToggle"):Set(false)
                 return
             end
-            -- Kiểm tra có đang ở trong map không
-            if not isPlayerInMap() then
-                print("Bạn chỉ có thể bật Auto Send Webhook khi đang ở trong map!")
-                return
-            end
+            
+            -- Loại bỏ kiểm tra đang ở trong map không, cho phép bật ở lobby
             autoSendWebhookEnabled = true
             ConfigSystem.CurrentConfig.AutoSendWebhook = true
             ConfigSystem.SaveConfig()
+            
             print("Auto Send Webhook đã được bật. Thông tin trận đấu sẽ tự động gửi khi game kết thúc.")
         else
             autoSendWebhookEnabled = false
             ConfigSystem.CurrentConfig.AutoSendWebhook = false
             ConfigSystem.SaveConfig()
+            
             print("Auto Send Webhook đã được tắt")
         end
     end
@@ -3921,17 +3940,262 @@ RangerSection:AddToggle("AutoJoinAllRangerToggle", {
     end
 })
 
--- Khởi động vòng lặp kiểm tra game kết thúc
-setupWebhookMonitor()
+-- Thêm section FPS Boost vào tab Settings
+local FPSBoostSection = SettingsTab:AddSection("FPS Boost")
 
--- Tự động ẩn UI nếu tính năng được bật (Sau khi mọi thứ đã load)
-spawn(function()
-    wait(2) -- Đợi thêm một chút để đảm bảo UI thực sự sẵn sàng
-    if Window and autoHideUIEnabled and not isMinimized then
-        print("Auto Hide UI đang bật, thực hiện ẩn UI khi khởi động...")
-        Window:Minimize()
-        print("UI đã được tự động ẩn. Nhấp vào logo để hiển thị lại.")
-    else
-        print("Auto Hide UI không bật hoặc UI đã ẩn, không thực hiện ẩn tự động.")
+-- Biến lưu trạng thái Delete Map
+local deleteMapEnabled = ConfigSystem.CurrentConfig.DeleteMap or false
+local deleteMapActive = false
+
+-- Hàm để xóa map
+local function deleteMap()
+    -- Kiểm tra nếu đang ở trong map
+    if not isPlayerInMap() then
+        print("Bạn phải ở trong map để sử dụng tính năng này")
+        return false
     end
-end)
+    
+    -- Đã xóa map và đang chờ vòng xóa tiếp theo
+    if deleteMapActive then
+        return true
+    end
+    
+    local success, err = pcall(function()
+        deleteMapActive = true
+        
+        -- Tìm workspace.Building
+        local building = workspace:FindFirstChild("Building")
+        if not building then
+            warn("Không tìm thấy Building trong workspace")
+            return
+        end
+        
+        -- Hàm để giữ lại các object đặc biệt
+        local function preserveSpecialObjects(parent)
+            local map = parent:FindFirstChild("Map")
+            if map then
+                local objectsToPreserve = {}
+                for _, child in pairs(map:GetDescendants()) do
+                    if child.Name == "Baseplate" or child.Name == "Part" then
+                        table.insert(objectsToPreserve, child)
+                        -- Di chuyển đến nơi an toàn
+                        child.Parent = game:GetService("ReplicatedStorage")
+                    end
+                end
+                return objectsToPreserve
+            end
+            return {}
+        end
+        
+        -- Hàm để khôi phục các object đã giữ lại
+        local function restoreObjects(preservedObjects)
+            local map = building:FindFirstChild("Map")
+            if not map then
+                map = Instance.new("Folder")
+                map.Name = "Map"
+                map.Parent = building
+            end
+            
+            for _, obj in pairs(preservedObjects) do
+                obj.Parent = map
+            end
+        end
+        
+        -- Bước 1: Tìm và tạm thời di chuyển các object đặc biệt
+        local preservedObjects = preserveSpecialObjects(building)
+        
+        -- Bước 2: Xóa tất cả trong Building
+        for _, child in pairs(building:GetChildren()) do
+            child:Destroy()
+        end
+        
+        -- Bước 3: Tạo lại Map folder và khôi phục các object đã giữ lại
+        local map = Instance.new("Folder")
+        map.Name = "Map"
+        map.Parent = building
+        
+        restoreObjects(preservedObjects)
+        
+        -- Xóa tất cả trong Lighting
+        local lighting = game:GetService("Lighting")
+        for _, child in pairs(lighting:GetChildren()) do
+            child:Destroy()
+        end
+        
+        print("Đã xóa map để tăng FPS")
+        
+        -- Đặt lại trạng thái sau 5 giây
+        spawn(function()
+            wait(5)
+            deleteMapActive = false
+        end)
+    end)
+    
+    if not success then
+        warn("Lỗi khi xóa map: " .. tostring(err))
+        deleteMapActive = false
+        return false
+    end
+    
+    return true
+end
+
+-- Toggle Delete Map
+FPSBoostSection:AddToggle("DeleteMapToggle", {
+    Title = "Delete Map",
+    Default = deleteMapEnabled,
+    Callback = function(Value)
+        deleteMapEnabled = Value
+        ConfigSystem.CurrentConfig.DeleteMap = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            -- Kiểm tra ngay nếu đang trong map
+            if isPlayerInMap() then
+                deleteMap()
+                print("Delete Map đã được bật - Map đã được xóa để tăng FPS")
+                
+                -- Thêm một event handler để xóa map mỗi khi vào map mới
+                if not game:GetService("Players").LocalPlayer.CharacterAdded:IsA("RBXScriptConnection") then
+                    game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
+                        -- Chờ một chút để map load xong
+                        wait(2)
+                        if deleteMapEnabled and isPlayerInMap() and not deleteMapActive then
+                            deleteMap()
+                        end
+                    end)
+                end
+            else
+                print("Delete Map đã được bật - Map sẽ bị xóa khi bạn vào map")
+                
+                -- Thêm một event handler để xóa map khi vào map
+                if not game:GetService("Players").LocalPlayer.CharacterAdded:IsA("RBXScriptConnection") then
+                    game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
+                        -- Chờ một chút để map load xong
+                        wait(2)
+                        if deleteMapEnabled and isPlayerInMap() and not deleteMapActive then
+                            deleteMap()
+                        end
+                    end)
+                end
+            end
+        else
+            print("Delete Map đã được tắt")
+        end
+    end
+})
+
+-- Biến lưu trạng thái Boost FPS
+local boostFPSEnabled = ConfigSystem.CurrentConfig.BoostFPS or false
+local boostFPSActive = false
+local fpsBoostScriptLoaded = false
+
+-- Toggle Boost FPS
+FPSBoostSection:AddToggle("BoostFPSToggle", {
+    Title = "Boost FPS",
+    Default = boostFPSEnabled,
+    Callback = function(Value)
+        boostFPSEnabled = Value
+        ConfigSystem.CurrentConfig.BoostFPS = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            -- Kiểm tra ngay nếu đang trong map
+            if isPlayerInMap() then
+                -- Thực hiện Boost FPS một lần duy nhất nếu chưa load
+                if not fpsBoostScriptLoaded then
+                    local success, err = pcall(function()
+                        boostFPSActive = true
+                        
+                        -- Thiết lập cấu hình FPS Boost
+                        _G.Settings = {
+                            Players = {
+                                ["Ignore Me"] = true, -- Ignore your Character
+                                ["Ignore Others"] = true -- Ignore other Characters
+                            },
+                            Meshes = {
+                                Destroy = false, -- Destroy Meshes
+                                LowDetail = true -- Low detail meshes (NOT SURE IT DOES ANYTHING)
+                            },
+                            Images = {
+                                Invisible = true, -- Invisible Images
+                                LowDetail = false, -- Low detail images (NOT SURE IT DOES ANYTHING)
+                                Destroy = false, -- Destroy Images
+                            },
+                            ["No Particles"] = true, -- Disables all ParticleEmitter, Trail, Smoke, Fire and Sparkles
+                            ["No Camera Effects"] = true, -- Disables all PostEffect's (Camera/Lighting Effects)
+                            ["No Explosions"] = true, -- Makes Explosion's invisible
+                            ["No Clothes"] = true, -- Removes Clothing from the game
+                            ["Low Water Graphics"] = true, -- Removes Water Quality
+                            ["No Shadows"] = true, -- Remove Shadows
+                            ["Low Rendering"] = true, -- Lower Rendering
+                            ["Low Quality Parts"] = true -- Lower quality parts
+                        }
+                        
+                        -- Load FPS Boost script
+                        loadstring(game:HttpGet("https://raw.githubusercontent.com/Kiet010402/FPS-BOOST/refs/heads/main/FPSBOOTS.lua"))()
+                        
+                        fpsBoostScriptLoaded = true
+                        print("FPS Boost đã được kích hoạt thành công!")
+                    end)
+                    
+                    if not success then
+                        warn("Lỗi khi Boost FPS: " .. tostring(err))
+                        boostFPSActive = false
+                        fpsBoostScriptLoaded = false
+                    end
+                else
+                    print("FPS Boost đã được kích hoạt trước đó, không cần kích hoạt lại")
+                end
+                
+                print("Boost FPS đã được bật - Đã tối ưu hóa FPS")
+            else
+                print("Boost FPS đã được bật - Sẽ tối ưu hóa FPS khi vào map")
+                
+                -- Thêm một event handler để Boost FPS khi vào map
+                if not game:GetService("Players").LocalPlayer.CharacterAdded:IsA("RBXScriptConnection") then
+                    game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
+                        -- Chờ một chút để map load xong
+                        wait(2)
+                        if boostFPSEnabled and isPlayerInMap() and not fpsBoostScriptLoaded then
+                            -- Thiết lập cấu hình FPS Boost
+                            _G.Settings = {
+                                Players = {
+                                    ["Ignore Me"] = true,
+                                    ["Ignore Others"] = true
+                                },
+                                Meshes = {
+                                    Destroy = false,
+                                    LowDetail = true
+                                },
+                                Images = {
+                                    Invisible = true,
+                                    LowDetail = false,
+                                    Destroy = false,
+                                },
+                                ["No Particles"] = true,
+                                ["No Camera Effects"] = true,
+                                ["No Explosions"] = true,
+                                ["No Clothes"] = true,
+                                ["Low Water Graphics"] = true,
+                                ["No Shadows"] = true,
+                                ["Low Rendering"] = true,
+                                ["Low Quality Parts"] = true
+                            }
+                            
+                            -- Load FPS Boost script
+                            pcall(function()
+                                loadstring(game:HttpGet("https://raw.githubusercontent.com/Kiet010402/FPS-BOOST/refs/heads/main/FPSBOOTS.lua"))()
+                                fpsBoostScriptLoaded = true
+                                print("FPS Boost đã được kích hoạt thành công khi vào map!")
+                            end)
+                        end
+                    end)
+                end
+            end
+        else
+            print("Boost FPS đã được tắt (Lưu ý: Thay đổi đã áp dụng vẫn sẽ có hiệu lực, cần reload game để khôi phục)")
+        end
+    end
+})
+
