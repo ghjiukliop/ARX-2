@@ -333,8 +333,8 @@ if not keyValid then
 end
 
 -- Delay 30 giây trước khi mở script
-print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 15 giây...")
-wait(15)
+print("HT Hub | Anime Rangers X đang khởi động, vui lòng đợi 10 giây...")
+wait(10)
 print("Đang tải script...")
 
 -- Tải thư viện Fluent
@@ -446,7 +446,6 @@ ConfigSystem.DefaultConfig = {
     AutoRetry = false,
     AutoNext = false,
     AutoVote = false,
-    RemoveAnimation = true,
     
     -- Cài đặt Update Units
     AutoUpdate = false,
@@ -478,6 +477,9 @@ ConfigSystem.DefaultConfig = {
     -- Cài đặt Easter Egg
     AutoJoinEasterEgg = false,
     EasterEggTimeDelay = 5,
+
+    -- Cài đặt Auto Join Priority
+    AutoJoinPriority = false,
     
     -- Cài đặt Anti AFK
     AntiAFK = true, -- Mặc định bật
@@ -643,11 +645,9 @@ local autoPlayEnabled = ConfigSystem.CurrentConfig.AutoPlay or false
 local autoRetryEnabled = ConfigSystem.CurrentConfig.AutoRetry or false
 local autoNextEnabled = ConfigSystem.CurrentConfig.AutoNext or false
 local autoVoteEnabled = ConfigSystem.CurrentConfig.AutoVote or false
-local removeAnimationEnabled = ConfigSystem.CurrentConfig.RemoveAnimation or false
 local autoRetryLoop = nil
 local autoNextLoop = nil
 local autoVoteLoop = nil
-local removeAnimationLoop = nil
 
 -- Biến lưu trạng thái Update Units
 local autoUpdateEnabled = ConfigSystem.CurrentConfig.AutoUpdate or false
@@ -684,8 +684,8 @@ local playerName = game:GetService("Players").LocalPlayer.Name
 local Window = Fluent:CreateWindow({
     Title = "HT Hub | Anime Rangers X",
     SubTitle = "",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
+    TabWidth = 140,
+    Size = UDim2.fromOffset(450, 350),
     Acrylic = true,
     Theme = ConfigSystem.CurrentConfig.UITheme or "Dark",
     MinimizeKey = Enum.KeyCode.LeftControl
@@ -703,16 +703,22 @@ local PlayTab = Window:AddTab({
     Icon = "rbxassetid://7743871480"
 })
 
--- Tạo tab Event
-local EventTab = Window:AddTab({
-    Title = "Event",
-    Icon = "rbxassetid://7734068321"
-})
-
 -- Tạo tab In-Game
 local InGameTab = Window:AddTab({
     Title = "In-Game",
     Icon = "rbxassetid://7733799901"
+})
+
+-- Tạo tab Priority
+local PriorityTab = Window:AddTab({
+    Title = "Priority",
+    Icon = "rbxassetid://7733734848"
+})
+
+-- Tạo tab Event
+local EventTab = Window:AddTab({
+    Title = "Event",
+    Icon = "rbxassetid://7734068321"
 })
 
 -- Tạo tab Unit
@@ -814,6 +820,24 @@ local function isPlayerInMap()
     
     -- Kiểm tra UnitsFolder một cách hiệu quả
     return player:FindFirstChild("UnitsFolder") ~= nil
+end
+
+local function isPlayerInRangerStageMap()
+    -- Path: ReplicatedStorage -> Values -> Game -> Gamemode (StringValue)
+    local gamemodeStringValue = safeGetPath(game:GetService("ReplicatedStorage"), {"Values", "Game", "Gamemode"}, 0.1) -- waitTime 0.1s
+    
+    if gamemodeStringValue and gamemodeStringValue:IsA("StringValue") then
+        if gamemodeStringValue.Value == "Ranger Stage" then
+            -- print("Currently in Ranger Stage map.") -- For debugging
+            return true
+        else
+            -- print("Gamemode is: " .. gamemodeStringValue.Value .. ", not Ranger Stage.") -- For debugging
+            return false
+        end
+    else
+        -- print("Gamemode StringValue not found at ReplicatedStorage.Values.Game.Gamemode") -- For debugging
+        return false
+    end
 end
 
 -- Thêm section Story trong tab Play
@@ -997,7 +1021,7 @@ end
 
 -- Dropdown để chọn Map
 StorySection:AddDropdown("MapDropdown", {
-    Title = "Choose Map",
+    Title = "Map",
     Values = {"Voocha Village", "Green Planet", "Demon Forest", "Leaf Village", "Z City"},
     Multi = false,
     Default = selectedDisplayMap,
@@ -1015,7 +1039,7 @@ StorySection:AddDropdown("MapDropdown", {
 
 -- Dropdown để chọn Chapter
 StorySection:AddDropdown("ChapterDropdown", {
-    Title = "Choose Chapter",
+    Title = "Chapter",
     Values = {"Chapter1", "Chapter2", "Chapter3", "Chapter4", "Chapter5", "Chapter6", "Chapter7", "Chapter8", "Chapter9", "Chapter10"},
     Multi = false,
     Default = ConfigSystem.CurrentConfig.SelectedChapter or "Chapter1",
@@ -1032,7 +1056,7 @@ StorySection:AddDropdown("ChapterDropdown", {
 
 -- Dropdown để chọn Difficulty
 StorySection:AddDropdown("DifficultyDropdown", {
-    Title = "Choose Difficulty",
+    Title = "Difficulty",
     Values = {"Normal", "Hard", "Nightmare"},
     Multi = false,
     Default = ConfigSystem.CurrentConfig.SelectedDifficulty or "Normal",
@@ -1148,7 +1172,7 @@ end
 
 -- Dropdown để chọn số lượng summon
 SummonSection:AddDropdown("SummonAmountDropdown", {
-    Title = "Choose Summon Amount",
+    Title = "Summon",
     Values = {"x1", "x10"},
     Multi = false,
     Default = ConfigSystem.CurrentConfig.SummonAmount or "x1",
@@ -1162,7 +1186,7 @@ SummonSection:AddDropdown("SummonAmountDropdown", {
 
 -- Dropdown để chọn banner
 SummonSection:AddDropdown("SummonBannerDropdown", {
-    Title = "Choose Banner",
+    Title = "Banner",
     Values = {"Standard", "Rate-Up"},
     Multi = false,
     Default = ConfigSystem.CurrentConfig.SummonBanner or "Standard",
@@ -1516,9 +1540,9 @@ end
 
 -- Hàm để tự động tham gia Ranger Stage (Sửa đổi để nhận map và act)
 local function joinRangerStage(mapToJoin, actToJoin)
-    -- Kiểm tra xem người chơi đã ở trong map chưa
-    if isPlayerInMap() then
-        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Ranger Stage")
+    -- Kiểm tra xem người chơi đã ở trong map Ranger Stage chưa
+    if isPlayerInRangerStageMap() then
+        print("Đã phát hiện người chơi đang ở trong map Ranger Stage, không thực hiện join Ranger Stage")
         return false
     end
 
@@ -1602,7 +1626,7 @@ local storyTimeDelayInput = nil
 
 -- Input cho Story Time Delay
 storyTimeDelayInput = StorySection:AddInput("StoryTimeDelayInput", {
-    Title = "Story Time Delay (1-30s)", -- Thêm min/max vào Title
+    Title = "Delay (1-30s)", -- Thêm min/max vào Title
     Placeholder = "Nhập delay",
     Default = tostring(storyTimeDelay),
     Numeric = true,
@@ -1626,7 +1650,7 @@ storyTimeDelayInput = StorySection:AddInput("StoryTimeDelayInput", {
 
 -- Dropdown để chọn Map cho Ranger
 RangerSection:AddDropdown("RangerMapDropdown", {
-    Title = "Choose Map(s)", -- Sửa tiêu đề
+    Title = "Map", -- Sửa tiêu đề
     Values = {"Voocha Village", "Green Planet", "Demon Forest", "Leaf Village", "Z City"},
     Multi = true, -- Cho phép chọn nhiều
     Default = (function() -- Khôi phục trạng thái đã chọn từ config
@@ -1682,7 +1706,7 @@ RangerSection:AddDropdown("RangerMapDropdown", {
 
 -- Dropdown để chọn Act
 RangerSection:AddDropdown("ActDropdown", {
-    Title = "Choose Act",
+    Title = "Act",
     Values = {"RangerStage1", "RangerStage2", "RangerStage3"},
     Multi = true,
     Default = ConfigSystem.CurrentConfig.SelectedActs or {RangerStage1 = true},
@@ -1741,7 +1765,7 @@ local rangerTimeDelayInput = nil
 
 -- Input cho Ranger Time Delay (Giữ lại, sửa callback)
 rangerTimeDelayInput = RangerSection:AddInput("RangerTimeDelayInput", {
-    Title = "Ranger Time Delay (1-30s)",
+    Title = "Delay (1-30s)",
     Placeholder = "Nhập delay",
     Default = tostring(rangerTimeDelay),
     Numeric = true,
@@ -1818,10 +1842,10 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                 while autoJoinRangerEnabled do
                     local didJoin = false
                     
-                    -- Kiểm tra nếu đang ở trong map, đợi ra khỏi map trước
-                    if isPlayerInMap() then
-                        print("Đang ở trong map, đợi thoát...")
-                        while isPlayerInMap() and autoJoinRangerEnabled do wait(0.1) end
+                    -- Kiểm tra nếu đang ở trong map Ranger Stage, đợi ra khỏi map trước
+                    if isPlayerInRangerStageMap() then
+                        print("Đang ở trong map Ranger Stage, đợi thoát...")
+                        while isPlayerInRangerStageMap() and autoJoinRangerEnabled do wait(0.1) end
                         if not autoJoinRangerEnabled then return end
                         wait(0.5) -- Đợi một chút giữa các lần kiểm tra
                     end
@@ -1856,11 +1880,11 @@ RangerSection:AddToggle("AutoJoinRangerToggle", {
                         
                         -- Đợi vào map hoặc timeout
                         local t = 0
-                        while not isPlayerInMap() and t < 10 and autoJoinRangerEnabled do wait(0.5); t = t + 0.5; end
+                        while not isPlayerInRangerStageMap() and t < 10 and autoJoinRangerEnabled do wait(0.5); t = t + 0.5; end
                         
                         -- Nếu đã vào map, đợi delay
-                        if isPlayerInMap() and autoJoinRangerEnabled then
-                            print("Đã vào map, đợi " .. rangerTimeDelay .. " giây...")
+                        if isPlayerInRangerStageMap() and autoJoinRangerEnabled then
+                            print("Đã vào map Ranger Stage, đợi " .. rangerTimeDelay .. " giây...")
                             wait(rangerTimeDelay)
                         end
                     else
@@ -1955,8 +1979,8 @@ RangerSection:AddToggle("AutoLeaveToggle", {
                 local emptyTime = 0
                 
                 while autoLeaveEnabled do
-                    -- Chỉ kiểm tra nếu đang ở trong map
-                    if isPlayerInMap() then
+                    -- Chỉ kiểm tra nếu đang ở trong map Ranger Stage
+                    if isPlayerInRangerStageMap() then
                         local areEmpty = checkEnemyFolder()
                         
                         if areEmpty then
@@ -2040,7 +2064,7 @@ local bossEventTimeDelayInput = nil
 
 -- Input cho Boss Event Time Delay
 bossEventTimeDelayInput = BossEventSection:AddInput("BossEventTimeDelayInput", {
-    Title = "Boss Event Delay (1-30s)",
+    Title = "Delay (1-30s)",
     Placeholder = "Nhập delay",
     Default = tostring(bossEventTimeDelay),
     Numeric = true,
@@ -2163,7 +2187,7 @@ local challengeTimeDelayInput = nil
 
 -- Input cho Challenge Time Delay
 challengeTimeDelayInput = ChallengeSection:AddInput("ChallengeTimeDelayInput", {
-    Title = "Challenge Delay (1-30s)",
+    Title = "Delay (1-30s)",
     Placeholder = "Nhập delay",
     Default = tostring(challengeTimeDelay),
     Numeric = true,
@@ -2234,26 +2258,6 @@ ChallengeSection:AddToggle("AutoChallengeToggle", {
     end
 })
 
--- Nút Join Challenge (manual)
-ChallengeSection:AddButton({
-    Title = "Join Challenge Now",
-    Callback = function()
-        -- Kiểm tra nếu người chơi đã ở trong map
-        if isPlayerInMap() then
-            print("Bạn đang ở trong map, không thể tham gia Challenge mới")
-            return
-        end
-        
-        local success = joinChallenge()
-        
-        if success then
-            print("Đang tham gia Challenge")
-        else
-            print("Không thể tham gia Challenge. Vui lòng thử lại sau.")
-        end
-    end
-})
-
 -- Thêm section In-Game Controls
 local InGameSection = InGameTab:AddSection("Game Controls")
 
@@ -2290,7 +2294,7 @@ local autoTPLobbyDelayInput = nil
 
 -- Input cho Auto TP Lobby Delay
 autoTPLobbyDelayInput = InGameSection:AddInput("AutoTPLobbyDelayInput", {
-    Title = "Auto TP Lobby Delay (1-60 phút)",
+    Title = "Delay (1-60m) ",
     Placeholder = "Nhập phút",
     Default = tostring(autoTPLobbyDelay),
     Numeric = true,
@@ -2501,7 +2505,7 @@ local function toggleAutoVote()
     end
 end
 
--- Toggle Auto Retry
+-- Cập nhật Toggle Auto Retry 
 InGameSection:AddToggle("AutoRetryToggle", {
     Title = "Auto Retry",
     Default = ConfigSystem.CurrentConfig.AutoRetry or false,
@@ -2511,7 +2515,7 @@ InGameSection:AddToggle("AutoRetryToggle", {
         ConfigSystem.SaveConfig()
         
         if Value then
-            print("Auto Retry đã được bật")
+            print("Auto Retry đã được bật (bao gồm tự động click sau GameEndedAnimationUI)")
             
             -- Hủy vòng lặp cũ nếu có
             if autoRetryLoop then
@@ -2519,12 +2523,8 @@ InGameSection:AddToggle("AutoRetryToggle", {
                 autoRetryLoop = nil
             end
             
-            -- Tạo vòng lặp mới
-            spawn(function()
-                while autoRetryEnabled and wait(3) do -- Gửi yêu cầu mỗi 3 giây
-                    toggleAutoRetry()
-                end
-            end)
+            -- Không tạo vòng lặp mới để tránh gửi yêu cầu liên tục
+            -- Chỉ kích hoạt khi RewardsUI xuất hiện
         else
             print("Auto Retry đã được tắt")
             
@@ -2537,7 +2537,7 @@ InGameSection:AddToggle("AutoRetryToggle", {
     end
 })
 
--- Toggle Auto Next
+-- Toggle Auto Next 
 InGameSection:AddToggle("AutoNextToggle", {
     Title = "Auto Next",
     Default = ConfigSystem.CurrentConfig.AutoNext or false,
@@ -2547,7 +2547,7 @@ InGameSection:AddToggle("AutoNextToggle", {
         ConfigSystem.SaveConfig()
         
         if Value then
-            print("Auto Next đã được bật")
+            print("Auto Next đã được bật (bao gồm tự động click sau GameEndedAnimationUI)")
             
             -- Hủy vòng lặp cũ nếu có
             if autoNextLoop then
@@ -2555,12 +2555,8 @@ InGameSection:AddToggle("AutoNextToggle", {
                 autoNextLoop = nil
             end
             
-            -- Tạo vòng lặp mới
-            spawn(function()
-                while autoNextEnabled and wait(3) do -- Gửi yêu cầu mỗi 3 giây
-                    toggleAutoNext()
-                end
-            end)
+            -- Không tạo vòng lặp mới để tránh gửi yêu cầu liên tục
+            -- Chỉ kích hoạt khi RewardsUI xuất hiện
         else
             print("Auto Next đã được tắt")
             
@@ -3164,108 +3160,6 @@ spawn(function()
     end
 end)
 
--- Hàm để xóa animations
-local function removeAnimations()
-    if not isPlayerInMap() then
-        return false
-    end
-    
-    local success, err = pcall(function()
-        -- Xóa UIS.Packages.Transition.Flash từ ReplicatedStorage
-        local uis = game:GetService("ReplicatedStorage"):FindFirstChild("UIS")
-            if uis then
-                local packages = uis:FindFirstChild("Packages")
-                if packages then
-                    local transition = packages:FindFirstChild("Transition")
-                    if transition then
-                    local flash = transition:FindFirstChild("Flash")
-                    if flash then
-                        flash:Destroy()
-                        print("Đã xóa ReplicatedStorage.UIS.Packages.Transition.Flash")
-                    end
-                end
-            end
-            
-            -- Xóa RewardsUI
-            local rewardsUI = uis:FindFirstChild("RewardsUI")
-            if rewardsUI then
-                rewardsUI:Destroy()
-                print("Đã xóa ReplicatedStorage.UIS.RewardsUI")
-            end
-        end
-    end)
-    
-    if not success then
-        warn("Lỗi khi xóa animations: " .. tostring(err))
-        return false
-    end
-    
-    return true
-end
-
--- Thêm Toggle Remove Animation
-InGameSection:AddToggle("RemoveAnimationToggle", {
-    Title = "Remove Animation",
-    Default = ConfigSystem.CurrentConfig.RemoveAnimation or true,
-    Callback = function(Value)
-        removeAnimationEnabled = Value
-        ConfigSystem.CurrentConfig.RemoveAnimation = Value
-        ConfigSystem.SaveConfig()
-        
-        if Value then
-            print("Remove Animation đã được bật")
-            
-            -- Hủy vòng lặp cũ nếu có
-            if removeAnimationLoop then
-                removeAnimationLoop:Disconnect()
-                removeAnimationLoop = nil
-            end
-            
-            -- Thử xóa animations ngay lập tức nếu đang trong map
-            if isPlayerInMap() then
-                removeAnimations()
-            else
-                print("Không ở trong map, sẽ xóa animations khi vào map")
-            end
-            
-            -- Tạo vòng lặp mới để xóa animations định kỳ
-            spawn(function()
-                while removeAnimationEnabled and wait(3) do
-                    if isPlayerInMap() then
-                        removeAnimations()
-                    end
-                end
-            end)
-        else
-            print("Remove Animation đã được tắt")
-            
-            -- Hủy vòng lặp nếu có
-            if removeAnimationLoop then
-                removeAnimationLoop:Disconnect()
-                removeAnimationLoop = nil
-            end
-        end
-    end
-})
-
--- Tự động xóa animations khi khởi động script nếu tính năng được bật và đang ở trong map
-spawn(function()
-    wait(3) -- Đợi game load
-    
-    if removeAnimationEnabled and isPlayerInMap() then
-        removeAnimations()
-        
-        -- Tạo vòng lặp để tiếp tục xóa animations định kỳ
-        spawn(function()
-            while removeAnimationEnabled and wait(3) do
-                if isPlayerInMap() then
-                    removeAnimations()
-                end
-            end
-        end)
-    end
-end)
-
 -- Thêm section Merchant trong tab Shop
 local MerchantSection = ShopTab:AddSection("Merchant")
 
@@ -3339,26 +3233,6 @@ MerchantSection:AddDropdown("MerchantItemsDropdown", {
             print("Đã chọn items: " .. selectedItemsText)
         else
             print("Không có item nào được chọn")
-        end
-    end
-})
-
--- Nút Buy Selected Item (mua thủ công)
-MerchantSection:AddButton({
-    Title = "Buy Selected Items",
-    Callback = function()
-        local selectedItemsCount = 0
-        -- Sửa cách duyệt qua selectedMerchantItems
-        for item, isSelected in pairs(selectedMerchantItems) do
-            if isSelected then
-                selectedItemsCount = selectedItemsCount + 1
-                buyMerchantItem(item)
-                wait(0.5) -- Chờ 0.5 giây giữa các lần mua
-            end
-        end
-        
-        if selectedItemsCount == 0 then
-            print("Không có item nào được chọn để mua")
         end
     end
 })
@@ -3514,7 +3388,7 @@ local easterEggTimeDelayInput = nil
 
 -- Input cho Easter Egg Time Delay
 easterEggTimeDelayInput = EasterEggSection:AddInput("EasterEggTimeDelayInput", {
-    Title = "Easter Egg Delay (1-60s)",
+    Title = "Delay (1-60s)",
     Placeholder = "Nhập delay",
     Default = tostring(easterEggTimeDelay),
     Numeric = true,
@@ -3588,22 +3462,6 @@ EasterEggSection:AddToggle("AutoJoinEasterEggToggle", {
                 autoJoinEasterEggLoop = nil
             end
         end
-    end
-})
-
--- Nút Join Easter Egg Now (thủ công)
-EasterEggSection:AddButton({
-    Title = "Join Easter Egg Now",
-    Callback = function()
-        -- Kiểm tra nếu người chơi đang ở trong map
-        if isPlayerInMap() then
-        print("Bạn đang ở trong map, không thể tham gia Easter Egg Event mới")
-            return
-        end
-        
-        print("Đang tham gia Easter Egg Event...")
-        
-        joinEasterEggEvent()
     end
 })
 
@@ -3738,6 +3596,7 @@ local function getGameInfoText()
         local leftSide = rewardsUI:FindFirstChild("Main") and rewardsUI.Main:FindFirstChild("LeftSide")
         if leftSide then
             local labels = {
+                "GameStatus",
                 "Mode",
                 "World",
                 "Chapter",
@@ -4259,10 +4118,10 @@ RangerSection:AddToggle("AutoJoinAllRangerToggle", {
                 local allMaps = {"OnePiece", "Namek", "DemonSlayer", "Naruto", "OPM"}
                 local allActs = {"RangerStage1", "RangerStage2", "RangerStage3"}
                 while autoJoinAllRangerEnabled do
-                    -- Kiểm tra nếu đang ở trong map, đợi ra khỏi map trước
-                    if isPlayerInMap() then
-                        print("Auto Join All: Đang ở trong map, đợi thoát...")
-                        while isPlayerInMap() and autoJoinAllRangerEnabled do wait(0.1) end
+                    -- Kiểm tra nếu đang ở trong map Ranger Stage, đợi ra khỏi map trước
+                    if isPlayerInRangerStageMap() then
+                        print("Auto Join All: Đang ở trong map Ranger Stage, đợi thoát...")
+                        while isPlayerInRangerStageMap() and autoJoinAllRangerEnabled do wait(0.1) end
                         if not autoJoinAllRangerEnabled then return end
                         wait(0.5) -- Đợi một chút giữa các lần kiểm tra
                     end
@@ -4290,14 +4149,14 @@ RangerSection:AddToggle("AutoJoinAllRangerToggle", {
                         
                         -- Đợi vào map hoặc timeout
                         local t = 0
-                        while not isPlayerInMap() and t < 10 and autoJoinAllRangerEnabled do 
+                        while not isPlayerInRangerStageMap() and t < 10 and autoJoinAllRangerEnabled do 
                             wait(0.5)
                             t = t + 0.5
                         end
                         
                         -- Nếu đã vào map, đợi delay
-                        if isPlayerInMap() and autoJoinAllRangerEnabled then
-                            print("Auto Join All: Đã vào map, đợi " .. rangerTimeDelay .. " giây...")
+                        if isPlayerInRangerStageMap() and autoJoinAllRangerEnabled then
+                            print("Auto Join All: Đã vào map Ranger Stage, đợi " .. rangerTimeDelay .. " giây...")
                             wait(rangerTimeDelay)
                         end
                     else
@@ -4623,6 +4482,22 @@ local function evolveSelectedUnits()
     local success, err = pcall(function()
         local player = game:GetService("Players").LocalPlayer
         local playerName = player.Name
+
+        -- Kiểm tra Ranger Crystal
+        local itemsFolder = safeGetPath(game:GetService("ReplicatedStorage"), {"Player_Data", playerName, "Items"}, 0.2)
+        local rangerCrystalObj = itemsFolder and safeGetChild(itemsFolder, "Ranger Crystal", 0.1)
+        local rangerCrystalAmount = (rangerCrystalObj and rangerCrystalObj:FindFirstChild("Amount") and rangerCrystalObj.Amount.Value) or 0
+
+        print("Số lượng Ranger Crystal hiện có: " .. rangerCrystalAmount)
+
+        if rangerCrystalAmount < 10 then
+            print("Không đủ Ranger Crystal để evolve (cần ít nhất 10).")
+            return
+        end
+
+        local maxEvolvableUnits = math.floor(rangerCrystalAmount / 10)
+        print("Có thể evolve tối đa " .. maxEvolvableUnits .. " unit với số crystal hiện tại.")
+
         local collectionGUI = player.PlayerGui:FindFirstChild("Collection")
         
         if not collectionGUI then
@@ -4630,33 +4505,35 @@ local function evolveSelectedUnits()
             return
         end
         
+        -- Sử dụng safeGetPath và safeGetChild để lấy playerCollection một cách an toàn hơn
+        local playerDataRoot = safeGetService("ReplicatedStorage")
+        local playerSpecificDataFolder = playerDataRoot and safeGetPath(playerDataRoot, {"Player_Data", playerName}, 0.2)
+        local playerCollection = playerSpecificDataFolder and safeGetChild(playerSpecificDataFolder, "Collection", 0.1)
         local unitSpace = collectionGUI.Main.Base.Space.Unit
-        local playerData = game:GetService("ReplicatedStorage"):WaitForChild("Player_Data")
-        local playerCollection = playerData:FindFirstChild(playerName) and playerData[playerName]:FindFirstChild("Collection")
         
         if not unitSpace or not playerCollection then
-            print("Không tìm thấy dữ liệu units cần thiết")
+            print("Không tìm thấy dữ liệu units cần thiết (GUI Collection hoặc dữ liệu player trong ReplicatedStorage).")
             return
         end
         
         print("Bắt đầu quét và nâng cấp units...")
         
         -- Đếm số lượng unit được xử lý
-        local totalUnits = 0
+        local totalUnitsScanned = 0
         local evolvedUnits = 0
         local skippedUnits = 0
         
         -- Tạo danh sách các unit cần nâng cấp
         local unitsToEvolve = {}
         
-        -- Lặp qua từng unit trong Collection
-        for _, unit in pairs(unitSpace:GetChildren()) do
-            -- Kiểm tra rank của unit
+        -- Lặp qua từng unit trong Collection (từ GUI)
+        for _, unitFrame in pairs(unitSpace:GetChildren()) do
+            -- Kiểm tra rank của unit từ GUI
             local unitRank = nil
             for rank, isSelected in pairs(selectedRanks) do
-                if isSelected and unit:FindFirstChild("Frame") and 
-                   unit.Frame:FindFirstChild("UnitFrame") and 
-                   unit.Frame.UnitFrame:FindFirstChild(rank) then
+                if isSelected and unitFrame:FindFirstChild("Frame") and 
+                   unitFrame.Frame:FindFirstChild("UnitFrame") and 
+                   unitFrame.Frame.UnitFrame:FindFirstChild(rank) then
                     unitRank = rank
                     break
                 end
@@ -4664,54 +4541,93 @@ local function evolveSelectedUnits()
             
             -- Nếu unit có rank đã chọn
             if unitRank then
-                local unitName = unit.Name
-                local unitData = playerCollection:FindFirstChild(unitName)
-                totalUnits = totalUnits + 1
+                local unitName = unitFrame.Name -- Tên unit từ frame GUI
+                local unitData = safeGetChild(playerCollection, unitName, 0.05) -- Lấy data unit từ ReplicatedStorage
+                totalUnitsScanned = totalUnitsScanned + 1
                 
-                -- Kiểm tra EvolveTier hiện tại
+                -- Kiểm tra EvolveTier hiện tại từ unitData
                 if unitData and unitData:FindFirstChild("EvolveTier") then
-                    local currentTier = unitData.EvolveTier.Value
+                    local currentTierValueHolder = unitData.EvolveTier
+                    local currentTier = currentTierValueHolder and currentTierValueHolder.Value
                     
-                    -- Chỉ evolve nếu hiện tại chưa có tier
+                    -- Chỉ evolve nếu hiện tại chưa có tier (currentTier là rỗng)
                     if currentTier == "" then
                         -- Lấy Tag để evolve
-                        if unitData:FindFirstChild("Tag") then
-                            local tag = unitData.Tag.Value
+                        local tagValueHolder = unitData:FindFirstChild("Tag")
+                        if tagValueHolder and tagValueHolder.Value then
+                            local tag = tagValueHolder.Value
                             table.insert(unitsToEvolve, {
                                 name = unitName,
                                 tag = tag,
                                 rank = unitRank
                             })
+                        else
+                            -- print(unitName .. " [" .. unitRank .. "] không có Tag, bỏ qua.")
                         end
                     else
                         skippedUnits = skippedUnits + 1
-                        print(unitName .. " [" .. unitRank .. "] đã có tier: " .. currentTier .. ", bỏ qua")
+                        -- print(unitName .. " [" .. unitRank .. "] đã có tier: " .. currentTier .. ", bỏ qua.")
                     end
+                else
+                    -- print(unitName .. " [" .. unitRank .. "] không có thông tin EvolveTier hoặc unitData, bỏ qua.")
                 end
             end
         end
         
-        print("Đã tìm thấy " .. #unitsToEvolve .. "/" .. totalUnits .. " unit phù hợp để evolve")
+        if #unitsToEvolve == 0 then
+            print("Không tìm thấy unit nào phù hợp (đúng rank và chưa có tier) để evolve trong danh sách đã quét.")
+            if skippedUnits > 0 then
+                 print("Số unit đã có tier (bỏ qua): " .. skippedUnits)
+            end
+            return
+        end
+
+        print("Đã tìm thấy " .. #unitsToEvolve .. " unit phù hợp (đúng rank, chưa có tier) để evolve.")
         
-        -- Tiến hành evolve từng unit một với thời gian chờ dài hơn
-        for i, unit in ipairs(unitsToEvolve) do
+        -- Tiến hành evolve từng unit một
+        for i, unitEvolveInfo in ipairs(unitsToEvolve) do
+            if evolvedUnits >= maxEvolvableUnits then
+                print("Đã sử dụng hết số Ranger Crystal cho phép sau khi evolve " .. evolvedUnits .. " unit.")
+                break
+            end
+
             local args = {
-                unit.tag,
+                unitEvolveInfo.tag,
                 selectedTier
             }
             
-            print("Đang evolve (" .. i .. "/" .. #unitsToEvolve .. "): " .. unit.name .. " [" .. unit.rank .. "] lên " .. selectedTier)
+            print("Đang evolve (" .. (evolvedUnits + 1) .. "/" .. math.min(#unitsToEvolve, maxEvolvableUnits) .. "): " .. unitEvolveInfo.name .. " [" .. unitEvolveInfo.rank .. "] lên " .. selectedTier)
             
             -- Thực hiện evolve
-            local evolveRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("EvolveTier")
+            local evolveRemote = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "Units", "EvolveTier"}, 0.5)
+            if evolveRemote then
+                local evolveSuccess, evolveError = pcall(function()
             evolveRemote:FireServer(unpack(args))
+                end)
+                if evolveSuccess then
             evolvedUnits = evolvedUnits + 1
+                else
+                    print("Lỗi khi gửi yêu cầu evolve cho " .. unitEvolveInfo.name .. ": " .. tostring(evolveError))
+                end
+            else
+                print("Không tìm thấy EvolveTier remote. Không thể evolve " .. unitEvolveInfo.name)
+                break -- Nếu remote không tồn tại, dừng luôn
+            end
             
             -- Đợi lâu hơn giữa các lần evolve để đảm bảo game kịp xử lý
-            wait(1) -- Tăng từ 0.5s lên 1.5s
+            wait(1.5) -- Tăng từ 1s lên 1.5s
         end
         
-        print("Hoàn thành! Đã evolve " .. evolvedUnits .. " unit lên " .. selectedTier .. ", bỏ qua " .. skippedUnits .. " unit đã có tier.")
+        print("--- Kết quả Evolve Tier ---")
+        print("Số unit đã quét có rank phù hợp: " .. totalUnitsScanned)
+        print("Số unit đã có tier từ trước (bỏ qua): " .. skippedUnits)
+        print("Số unit được đưa vào danh sách evolve (đúng rank, chưa có tier): " .. #unitsToEvolve)
+        print("Số unit đã evolve thành công trong lượt này: " .. evolvedUnits .. " (Lên tier " .. selectedTier .. ")")
+        if evolvedUnits < #unitsToEvolve and evolvedUnits == maxEvolvableUnits then
+             print("Quá trình dừng sớm do đã sử dụng hết Ranger Crystal (" .. rangerCrystalAmount .. " ban đầu).")
+        end
+        print("---------------------------")
+
     end)
     
     if not success then
@@ -4719,49 +4635,247 @@ local function evolveSelectedUnits()
     end
 end
 
--- Toggle Auto EvolveTier
+-- Cải tiến hàm evolve để xử lý nhiều unit cùng lúc
+local function evolveAllSelectedUnits()
+    local success, err = pcall(function()
+        local player = game:GetService("Players").LocalPlayer
+        local playerName = player.Name
+
+        -- Kiểm tra Ranger Crystal
+        local itemsFolder = safeGetPath(game:GetService("ReplicatedStorage"), {"Player_Data", playerName, "Items"}, 0.2)
+        local rangerCrystalObj = itemsFolder and safeGetChild(itemsFolder, "Ranger Crystal", 0.1)
+        local rangerCrystalAmount = (rangerCrystalObj and rangerCrystalObj:FindFirstChild("Amount") and rangerCrystalObj.Amount.Value) or 0
+
+        print("Số lượng Ranger Crystal hiện có: " .. rangerCrystalAmount)
+
+        if rangerCrystalAmount < 10 then
+            print("Không đủ Ranger Crystal để evolve (cần ít nhất 10).")
+            return
+        end
+
+        local maxEvolvableUnits = math.floor(rangerCrystalAmount / 10)
+        print("Có thể evolve tối đa " .. maxEvolvableUnits .. " unit với số crystal hiện tại.")
+
+        local collectionGUI = player.PlayerGui:FindFirstChild("Collection")
+        
+        if not collectionGUI then
+            print("Không tìm thấy GUI Collection. Hãy mở Collection trước!")
+            return
+        end
+        
+        -- Sử dụng safeGetPath và safeGetChild để lấy playerCollection một cách an toàn hơn
+        local playerDataRoot = safeGetService("ReplicatedStorage")
+        local playerSpecificDataFolder = playerDataRoot and safeGetPath(playerDataRoot, {"Player_Data", playerName}, 0.2)
+        local playerCollection = playerSpecificDataFolder and safeGetChild(playerSpecificDataFolder, "Collection", 0.1)
+        local unitSpace = collectionGUI.Main.Base.Space.Unit
+
+        if not unitSpace or not playerCollection then
+            print("Không tìm thấy dữ liệu units cần thiết (GUI Collection hoặc dữ liệu player trong ReplicatedStorage).")
+            return
+        end
+        
+        print("Bắt đầu quét units...")
+        
+        -- Đếm số lượng unit được xử lý
+        local totalUnitsScanned = 0
+        local evolvedUnits = 0
+        local skippedUnits = 0
+        
+        -- Tạo danh sách các unit cần nâng cấp
+        local unitsToEvolve = {}
+        
+        -- Hàm để scan lại danh sách units
+        local function scanUnits()
+            unitsToEvolve = {}
+            totalUnitsScanned = 0
+            skippedUnits = 0
+            
+            -- Lấy lại dữ liệu Crystal mới nhất
+            rangerCrystalObj = itemsFolder and safeGetChild(itemsFolder, "Ranger Crystal", 0.1)
+            rangerCrystalAmount = (rangerCrystalObj and rangerCrystalObj:FindFirstChild("Amount") and rangerCrystalObj.Amount.Value) or 0
+            maxEvolvableUnits = math.floor(rangerCrystalAmount / 10)
+            
+            -- Lặp qua từng unit trong Collection (từ GUI)
+            for _, unitFrame in pairs(unitSpace:GetChildren()) do
+                -- Kiểm tra rank của unit từ GUI
+                local unitRank = nil
+                for rank, isSelected in pairs(selectedRanks) do
+                    if isSelected and unitFrame:FindFirstChild("Frame") and 
+                       unitFrame.Frame:FindFirstChild("UnitFrame") and 
+                       unitFrame.Frame.UnitFrame:FindFirstChild(rank) then
+                        unitRank = rank
+                        break
+                    end
+                end
+                
+                -- Nếu unit có rank đã chọn
+                if unitRank then
+                    local unitName = unitFrame.Name -- Tên unit từ frame GUI
+                    local unitData = safeGetChild(playerCollection, unitName, 0.05) -- Lấy data unit từ ReplicatedStorage
+                    totalUnitsScanned = totalUnitsScanned + 1
+                    
+                    -- Kiểm tra EvolveTier hiện tại từ unitData
+                    if unitData and unitData:FindFirstChild("EvolveTier") then
+                        local currentTierValueHolder = unitData.EvolveTier
+                        local currentTier = currentTierValueHolder and currentTierValueHolder.Value
+
+                        -- Chỉ evolve nếu hiện tại chưa có tier (currentTier là rỗng)
+                        if currentTier == "" then
+                            -- Lấy Tag để evolve
+                            local tagValueHolder = unitData:FindFirstChild("Tag")
+                            if tagValueHolder and tagValueHolder.Value then
+                                local tag = tagValueHolder.Value
+                                table.insert(unitsToEvolve, {
+                                    name = unitName,
+                                    tag = tag,
+                                    rank = unitRank
+                                })
+                            end
+                        else
+                            skippedUnits = skippedUnits + 1
+                        end
+                    end
+                end
+            end
+            
+            return #unitsToEvolve > 0
+        end
+        
+        -- Scan lần đầu
+        local hasUnitsToEvolve = scanUnits()
+        
+        if not hasUnitsToEvolve then
+            print("Không tìm thấy unit nào phù hợp (đúng rank và chưa có tier) để evolve trong danh sách đã quét.")
+            if skippedUnits > 0 then
+                 print("Số unit đã có tier (bỏ qua): " .. skippedUnits)
+            end
+            return
+        end
+
+        print("Đã tìm thấy " .. #unitsToEvolve .. " unit phù hợp (đúng rank, chưa có tier) để evolve.")
+        print("Bắt đầu tiến trình evolve...")
+        
+        -- Tiến hành evolve nhiều unit cùng lúc
+        local batchSize = math.min(maxEvolvableUnits, #unitsToEvolve)
+        local evolveRemote = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "Units", "EvolveTier"}, 0.5)
+        
+        if not evolveRemote then
+            print("Không tìm thấy EvolveTier remote. Không thể evolve units.")
+            return
+        end
+        
+        -- Evolve theo batch
+        local attemptCount = 0
+        local maxAttempts = 3 -- Số lần thử tối đa nếu không thành công
+        
+        while evolvedUnits < batchSize and attemptCount < maxAttempts do
+            attemptCount = attemptCount + 1
+            
+            -- Scan lại units nếu không phải lần đầu thử
+            if attemptCount > 1 then
+                print("Thử lại lần " .. attemptCount .. ": Đang scan lại danh sách units...")
+                hasUnitsToEvolve = scanUnits()
+                
+                if not hasUnitsToEvolve then
+                    print("Không còn unit nào phù hợp để evolve sau khi scan lại.")
+                    break
+                end
+                
+                -- Cập nhật lại batchSize
+                batchSize = math.min(maxEvolvableUnits - evolvedUnits, #unitsToEvolve)
+                if batchSize <= 0 then
+                    print("Đã đạt giới hạn số lượng unit có thể evolve với số crystal hiện có.")
+                    break
+                end
+            end
+            
+            print("Đang evolve batch " .. attemptCount .. " với " .. batchSize .. " units...")
+            
+            -- Evolve từng unit trong batch
+            local batchSuccess = true
+            local startIndex = evolvedUnits + 1
+            local endIndex = math.min(startIndex + batchSize - 1, #unitsToEvolve)
+            
+            for i = startIndex, endIndex do
+                local unitEvolveInfo = unitsToEvolve[i]
+                
+                local args = {
+                    unitEvolveInfo.tag,
+                    selectedTier
+                }
+                
+                print("Đang evolve (" .. (evolvedUnits + 1) .. "/" .. batchSize .. "): " .. unitEvolveInfo.name .. " [" .. unitEvolveInfo.rank .. "] lên " .. selectedTier)
+                
+                local evolveSuccess, evolveError = pcall(function()
+                    evolveRemote:FireServer(unpack(args))
+                end)
+                
+                if evolveSuccess then
+                    evolvedUnits = evolvedUnits + 1
+                else
+                    print("Lỗi khi gửi yêu cầu evolve cho " .. unitEvolveInfo.name .. ": " .. tostring(evolveError))
+                    batchSuccess = false
+                    break
+                end
+                
+                -- Đợi giữa các lần evolve
+                wait(1.5)
+            end
+            
+            -- Nếu batch thành công và đã evolve đủ số lượng, thoát vòng lặp
+            if batchSuccess and evolvedUnits >= batchSize then
+                break
+            end
+            
+            -- Đợi thêm thời gian trước khi thử lại
+            print("Đợi 3 giây trước khi tiếp tục...")
+            wait(3)
+        end
+        
+        print("--- Kết quả Evolve Tier ---")
+        print("Số unit đã quét có rank phù hợp: " .. totalUnitsScanned)
+        print("Số unit đã có tier từ trước (bỏ qua): " .. skippedUnits)
+        print("Số unit được đưa vào danh sách evolve (đúng rank, chưa có tier): " .. #unitsToEvolve)
+        print("Số unit đã evolve thành công: " .. evolvedUnits .. " (Lên tier " .. selectedTier .. ")")
+        
+        if evolvedUnits < #unitsToEvolve then
+            if evolvedUnits == maxEvolvableUnits then
+                print("Quá trình dừng do đã sử dụng hết Ranger Crystal.")
+            else
+                print("Không thể evolve tất cả unit trong danh sách. Vui lòng thử lại sau.")
+            end
+        else
+            print("Đã evolve thành công tất cả unit đã chọn!")
+        end
+        
+        print("---------------------------")
+    end)
+    
+    if not success then
+        warn("Lỗi khi evolve units: " .. tostring(err))
+    end
+end
+
+-- Thay thế hàm cũ bằng hàm mới
+evolveSelectedUnits = evolveAllSelectedUnits
+
+-- Toggle Auto Evolve Tier
 EvolveTierSection:AddToggle("AutoEvolveTierToggle", {
     Title = "EvolveTier Selected",
-    Default = autoEvolveTierEnabled,
+    Default = ConfigSystem.CurrentConfig.AutoEvolveTier or false,
     Callback = function(Value)
         autoEvolveTierEnabled = Value
         ConfigSystem.CurrentConfig.AutoEvolveTier = Value
         ConfigSystem.SaveConfig()
         
         if Value then
-            print("Auto EvolveTier đã được bật")
+            print("Auto Evolve Tier đã được bật")
             
             -- Thực hiện evolve ngay lập tức
-            evolveSelectedUnits()
-            
-            -- Tạo vòng lặp
-            if autoEvolveTierLoop then
-                autoEvolveTierLoop:Disconnect()
-                autoEvolveTierLoop = nil
-            end
-            
-            spawn(function()
-                while autoEvolveTierEnabled and wait(5) do
-                    evolveSelectedUnits()
-                end
-            end)
-        else
-            print("Auto EvolveTier đã được tắt")
-            
-            if autoEvolveTierLoop then
-                autoEvolveTierLoop:Disconnect()
-                autoEvolveTierLoop = nil
-            end
-        end
-    end
-})
-
--- Nút Evolve Now (thực hiện ngay lập tức)
-EvolveTierSection:AddButton({
-    Title = "Evolve Now",
-    Callback = function()
-        print("Đang thực hiện Evolve cho các unit đã chọn...")
         evolveSelectedUnits()
+        else
+            print("Auto Evolve Tier đã được tắt")
+        end
     end
 })
 
@@ -5233,45 +5347,294 @@ StatsPotentialSection:AddToggle("RollStatsPotentialToggle", {
     end
 })
 
--- Nút Roll Now
-StatsPotentialSection:AddButton({
-    Title = "Roll Stats Now",
-    Callback = function()
-        if not selectedUnit then
-            print("Vui lòng chọn unit trước khi roll stats")
-            return
-        end
-        
-        print("Đang roll stats cho " .. selectedUnit.name .. "...")
-        rollStatsPotential()
-        
-        -- Làm mới thông tin unit sau khi roll
-        wait(0.5)
-        local currentUnits = scanAvailableUnits()
-        for _, unit in ipairs(currentUnits) do
-            if unit.tag == selectedUnitTag then
-                selectedUnit = unit
-                
-                -- Hiển thị thông tin stats sau khi roll
-                local unitRef = unit.ref
-                if unitRef then
-                    local damageValue = unitRef:FindFirstChild("DamagePotential") and unitRef.DamagePotential.Value or "N/A"
-                    local healthValue = unitRef:FindFirstChild("HealthPotential") and unitRef.HealthPotential.Value or "N/A"
-                    local speedValue = unitRef:FindFirstChild("SpeedPotential") and unitRef.SpeedPotential.Value or "N/A"
-                    local rangeValue = unitRef:FindFirstChild("RangePotential") and unitRef.RangePotential.Value or "N/A"
-                    local cooldownValue = unitRef:FindFirstChild("AttackCooldownPotential") and unitRef.AttackCooldownPotential.Value or "N/A"
+-- Hàm để theo dõi RewardsUI và kích hoạt Auto Retry và Auto Next
+local function setupRewardsUIWatcher()
+    spawn(function()
+        -- Sử dụng pcall để tránh lỗi khi không tìm thấy PlayerGui
+        pcall(function()
+            local player = game:GetService("Players").LocalPlayer
+            if not player then return end
+            
+            -- Đợi PlayerGui load
+            while not player:FindFirstChild("PlayerGui") do wait(0.1) end
+            local PlayerGui = player.PlayerGui
+            
+            -- Biến để theo dõi khi nào đã thực hiện Auto Retry/Auto Next
+            local hasTriggeredAction = false
+            
+            -- Hàm để mô phỏng một click chuột
+            local function simulateClick()
+                local VirtualInputManager = game:GetService("VirtualInputManager")
+
+                -- Tọa độ giả định - bạn có thể thay đổi cho phù hợp nút cần nhấn
+                local x, y = 500, 500 
+
+                -- Gửi sự kiện click chuột trái
+                VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 0)
+                VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 0)
+            end
+            
+            -- Theo dõi khi GameEndedAnimationUI được thêm vào PlayerGui
+            PlayerGui.ChildAdded:Connect(function(child)
+                if child.Name == "GameEndedAnimationUI" then
+                    warn("Đã phát hiện GameEndedAnimationUI")
+                    hasTriggeredAction = false
                     
-                    print("Stats Potential sau khi roll:")
-                    print("- Damage: " .. damageValue)
-                    print("- Health: " .. healthValue)
-                    print("- Speed: " .. speedValue)
-                    print("- Range: " .. rangeValue)
-                    print("- Cooldown: " .. cooldownValue)
+                    -- Chỉ kích hoạt tính năng này nếu Auto Retry hoặc Auto Next được bật
+                    if autoRetryEnabled or autoNextEnabled then
+                        -- Lặp liên tục click cho tới khi RewardsUI.Enabled = true
+                        task.spawn(function()
+                            while true do
+                                task.wait(0.2) -- thời gian chờ giữa mỗi click, tránh spam quá nhanh
+                                
+                                local rewardsUI = PlayerGui:FindFirstChild("RewardsUI")
+                                if rewardsUI and rewardsUI.Enabled then
+                                    warn("RewardsUI đã bật. Ngưng click.")
+                                    break
+                                end
+                                
+                                warn("Đang thực hiện click tự động...")
+                                simulateClick()
+                            end
+                        end)
+                    end
                 end
-                break
+            end)
+            
+            -- Kiểm tra RewardsUI định kỳ
+            while wait(0.5) do
+                local rewardsUI = player.PlayerGui:FindFirstChild("RewardsUI")
+                
+                -- Chỉ kích hoạt nếu RewardsUI được bật VÀ chưa thực hiện Auto Retry/Auto Next
+                if rewardsUI and rewardsUI.Enabled and not hasTriggeredAction then
+                    print("RewardsUI được bật lên, sẽ kích hoạt Auto Retry và Auto Next sau 1s")
+                    wait(1) -- Đợi 1 giây như yêu cầu
+                    
+                    -- Đánh dấu đã kích hoạt để không kích hoạt lại liên tục
+                    hasTriggeredAction = true
+                    
+                    -- Kích hoạt Auto Retry/Auto Next một lần duy nhất
+                    if autoRetryEnabled then
+                        print("Kích hoạt Auto Retry...")
+                        toggleAutoRetry()
+                    elseif autoNextEnabled then
+                        print("Kích hoạt Auto Next...")
+                        toggleAutoNext()
+                    end
+                    
+                    -- Reset cờ hasTriggeredAction sau 5 giây để chuẩn bị cho lần tiếp theo
+                    spawn(function()
+                        wait(5)
+                        hasTriggeredAction = false
+                    end)
+                end
+            end
+        end)
+    end)
+end
+
+-- Cập nhật Toggle Auto Retry 
+InGameSection:AddToggle("AutoRetryToggle", {
+    Title = "Auto Retry",
+    Default = ConfigSystem.CurrentConfig.AutoRetry or false,
+    Callback = function(Value)
+        autoRetryEnabled = Value
+        ConfigSystem.CurrentConfig.AutoRetry = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            print("Auto Retry đã được bật (bao gồm tự động click sau GameEndedAnimationUI)")
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoRetryLoop then
+                autoRetryLoop:Disconnect()
+                autoRetryLoop = nil
+            end
+            
+            -- Không tạo vòng lặp mới để tránh gửi yêu cầu liên tục
+            -- Chỉ kích hoạt khi RewardsUI xuất hiện
+        else
+            print("Auto Retry đã được tắt")
+            
+            -- Hủy vòng lặp nếu có
+            if autoRetryLoop then
+                autoRetryLoop:Disconnect()
+                autoRetryLoop = nil
             end
         end
     end
 })
 
-print("Anime Rangers X Script has been loaded and optimized!")
+-- Toggle Auto Next 
+InGameSection:AddToggle("AutoNextToggle", {
+    Title = "Auto Next",
+    Default = ConfigSystem.CurrentConfig.AutoNext or false,
+    Callback = function(Value)
+        autoNextEnabled = Value
+        ConfigSystem.CurrentConfig.AutoNext = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            print("Auto Next đã được bật (bao gồm tự động click sau GameEndedAnimationUI)")
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoNextLoop then
+                autoNextLoop:Disconnect()
+                autoNextLoop = nil
+            end
+            
+            -- Không tạo vòng lặp mới để tránh gửi yêu cầu liên tục
+            -- Chỉ kích hoạt khi RewardsUI xuất hiện
+        else
+            print("Auto Next đã được tắt")
+            
+            -- Hủy vòng lặp nếu có
+            if autoNextLoop then
+                autoNextLoop:Disconnect()
+                autoNextLoop = nil
+            end
+        end
+    end
+})
+
+-- Gọi hàm theo dõi RewardsUI khi script khởi động
+setupRewardsUIWatcher()
+
+-- Priority tab
+local PrioritySection = PriorityTab:AddSection("Priority Settings")
+
+-- Biến lưu trạng thái Auto Join Priority
+local autoJoinPriorityEnabled = ConfigSystem.CurrentConfig.AutoJoinPriority or false
+local autoJoinPriorityLoop = nil
+-- Danh sách các mode
+local availableModes = {"Story", "Ranger Stage", "Boss Event", "Challenge", "Easter Egg", "None"}
+
+-- Biến lưu thứ tự ưu tiên
+local priorityOrder = {"None", "None", "None", "None", "None"}
+
+-- Tạo 5 dropdown cho thứ tự ưu tiên
+for i = 1, 5 do
+    PrioritySection:AddDropdown("PriorityDropdown" .. i, {
+        Title = "Priority Slot " .. i,
+        Values = availableModes,
+        Multi = false,
+        Default = ConfigSystem.CurrentConfig["PrioritySlot" .. i] or "None", -- Lấy giá trị từ JSON hoặc mặc định là "None"
+        Callback = function(Value)
+            priorityOrder[i] = Value -- Cập nhật thứ tự ưu tiên
+            ConfigSystem.CurrentConfig["PrioritySlot" .. i] = Value -- Lưu vào cấu hình
+            ConfigSystem.SaveConfig() -- Lưu cấu hình vào file JSON
+            
+            print("Đã chọn Priority Slot " .. i .. ": " .. Value)
+        end
+    })
+end
+
+-- Cập nhật hàm Auto Join Priority để bỏ qua "None"
+local function autoJoinPriority()
+    if not autoJoinPriorityEnabled or isPlayerInMap() then
+        return
+    end
+
+    -- Duyệt qua thứ tự ưu tiên và bỏ qua "None"
+    for _, mode in ipairs(priorityOrder) do
+        if mode ~= "None" then
+            local success = false
+            if mode == "Story" then
+                success = joinMap()
+            elseif mode == "Ranger Stage" then
+                success = joinRangerStage()
+            elseif mode == "Boss Event" then
+                success = joinBossEvent()
+            elseif mode == "Challenge" then
+                success = joinChallenge()
+            elseif mode == "Easter Egg" then
+                success = joinEasterEggEvent()
+            end
+
+            -- Nếu tham gia thành công, dừng vòng lặp
+            if success then
+                print("Đã tham gia mode: " .. mode)
+                return
+            else
+                print("Không thể tham gia mode: " .. mode .. ", chuyển sang mode tiếp theo.")
+            end
+        end
+    end
+
+    print("Không có mode nào khả dụng để tham gia.")
+end
+
+-- Tự động tải thứ tự ưu tiên từ cấu hình khi khởi động
+spawn(function()
+    wait(1) -- Đợi game load
+    for i = 1, 5 do
+        priorityOrder[i] = ConfigSystem.CurrentConfig["PrioritySlot" .. i] or "None"
+    end
+    print("Đã tải thứ tự ưu tiên từ cấu hình:", table.concat(priorityOrder, ", "))
+end)
+
+-- Toggle Auto Join Priority
+PrioritySection:AddToggle("AutoJoinPriorityToggle", {
+    Title = "Enable Auto Join Priority",
+    Default = autoJoinPriorityEnabled,
+    Callback = function(Value)
+        autoJoinPriorityEnabled = Value
+        ConfigSystem.CurrentConfig.AutoJoinPriority = Value
+        ConfigSystem.SaveConfig()
+
+        if Value then
+            Fluent:Notify({
+                Title = "Auto Join Priority",
+                Content = "Auto Join Priority đã được bật.",
+                Duration = 3
+            })
+
+            -- Gọi hàm autoJoinPriority ngay lập tức
+            autoJoinPriority()
+
+            -- Tạo vòng lặp Auto Join Priority
+            if autoJoinPriorityLoop then
+                autoJoinPriorityLoop:Disconnect()
+                autoJoinPriorityLoop = nil
+            end
+
+            spawn(function()
+                while autoJoinPriorityEnabled and wait(5) do
+                    autoJoinPriority()
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto Join Priority",
+                Content = "Auto Join Priority đã được tắt.",
+                Duration = 3
+            })
+
+            -- Hủy vòng lặp nếu có
+            if autoJoinPriorityLoop then
+                autoJoinPriorityLoop:Disconnect()
+                autoJoinPriorityLoop = nil
+            end
+        end
+    end
+})
+
+-- Tự động tải trạng thái Auto Join Priority và Priority List khi khởi động
+spawn(function()
+    wait(1) -- Đợi game load
+
+    -- Tải trạng thái Auto Join Priority
+    autoJoinPriorityEnabled = ConfigSystem.CurrentConfig.AutoJoinPriority or false
+
+    -- Tải danh sách Priority List
+    priorityOrder = {
+        ConfigSystem.CurrentConfig["PrioritySlot1"] or "None",
+        ConfigSystem.CurrentConfig["PrioritySlot2"] or "None",
+        ConfigSystem.CurrentConfig["PrioritySlot3"] or "None",
+        ConfigSystem.CurrentConfig["PrioritySlot4"] or "None",
+        ConfigSystem.CurrentConfig["PrioritySlot5"] or "None"
+    }
+
+    print("Đã tải trạng thái Auto Join Priority và Priority List từ cấu hình.")
+end)
+-- end 
