@@ -474,10 +474,6 @@ ConfigSystem.DefaultConfig = {
     -- Cài đặt Auto Scan Units
     AutoScanUnits = true, -- Mặc định bật
     
-    -- Cài đặt Easter Egg
-    AutoJoinEasterEgg = false,
-    EasterEggTimeDelay = 5,
-    
     -- Cài đặt Anti AFK
     AntiAFK = true, -- Mặc định bật
     
@@ -490,6 +486,16 @@ ConfigSystem.DefaultConfig = {
     
     -- Cài đặt Auto Movement
     AutoMovement = false,
+    
+    -- Cài đặt Portal
+    SelectedPortals = {},
+    AutoOpenPortal = false,
+    
+    -- Cài đặt RC Exchange
+    AutoBuyQuinque = false,
+    
+    -- Cài đặt Portal
+    AutoStartPortal = false,
 }
 ConfigSystem.CurrentConfig = {}
 
@@ -605,7 +611,8 @@ local mapNameMapping = {
     ["Green Planet"] = "Namek",
     ["Demon Forest"] = "DemonSlayer",
     ["Leaf Village"] = "Naruto",
-    ["Z City"] = "OPM"
+    ["Z City"] = "OPM",
+    ["Ghoul City"] = "TokyoGhoul"
 }
 
 -- Mapping ngược lại để hiển thị tên cho người dùng
@@ -714,9 +721,9 @@ local InGameTab = Window:AddTab({
 })
 
 
--- Tạo tab Event
-local EventTab = Window:AddTab({
-    Title = "Event",
+-- Tạo tab Portal
+local PortalTab = Window:AddTab({
+    Title = "Portal",
     Icon = "rbxassetid://7734068321"
 })
 
@@ -804,7 +811,7 @@ local InfoSection = InfoTab:AddSection("Thông tin")
 
 InfoSection:AddParagraph({
     Title = "Anime Rangers X",
-    Content = "Phiên bản: 0.5 Beta\nTrạng thái: Hoạt động"
+    Content = "Phiên bản: 0.6 Beta\nTrạng thái: Hoạt động"
 })
 
 InfoSection:AddParagraph({
@@ -1103,7 +1110,7 @@ end
 -- Dropdown để chọn Map
 StorySection:AddDropdown("MapDropdown", {
     Title = "Map",
-    Values = {"Voocha Village", "Green Planet", "Demon Forest", "Leaf Village", "Z City"},
+    Values = {"Voocha Village", "Green Planet", "Demon Forest", "Leaf Village", "Z City", "Ghoul City"},
     Multi = false,
     Default = selectedDisplayMap,
     Callback = function(Value)
@@ -1557,7 +1564,7 @@ end
 
 -- Thêm event listener để lưu ngay khi thay đổi giá trị
 local function setupSaveEvents()
-    for _, tab in pairs({InfoTab, PlayTab, ShopTab, SettingsTab}) do
+    for _, tab in pairs({InfoTab, PlayTab, ShopTab, SettingsTab, PortalTab, UnitTab, InGameTab, WebhookTab}) do
         if tab and tab._components then
             for _, element in pairs(tab._components) do
                 if element and element.OnChanged then
@@ -1652,12 +1659,6 @@ local function setupOptimizedLoops()
                     shouldContinue = isPlayerInMap()
                 end
                 
-                -- Kiểm tra Auto Easter Egg
-                if autoJoinEasterEggEnabled and not shouldContinue then
-                    joinEasterEggEvent()
-                    wait(1)
-                    shouldContinue = isPlayerInMap()
-                end
                 
                 -- Kiểm tra Auto Join AFK nếu không áp dụng các tính năng trên
                 if autoJoinAFKEnabled and not shouldContinue and not isPlayerInMap() then
@@ -1864,7 +1865,7 @@ storyTimeDelayInput = StorySection:AddInput("StoryTimeDelayInput", {
 -- Dropdown để chọn Map cho Ranger
 RangerSection:AddDropdown("RangerMapDropdown", {
     Title = "Map", -- Sửa tiêu đề
-    Values = {"Voocha Village", "Green Planet", "Demon Forest", "Leaf Village", "Z City"},
+    Values = {"Voocha Village", "Green Planet", "Demon Forest", "Leaf Village", "Z City", "Ghoul City"},
     Multi = true, -- Cho phép chọn nhiều
     Default = (function() -- Khôi phục trạng thái đã chọn từ config
         local defaults = {}
@@ -1920,7 +1921,7 @@ RangerSection:AddDropdown("RangerMapDropdown", {
 -- Dropdown để chọn Act
 RangerSection:AddDropdown("ActDropdown", {
     Title = "Act",
-    Values = {"RangerStage1", "RangerStage2", "RangerStage3"},
+    Values = {"RangerStage1", "RangerStage2", "RangerStage3", "RangerStage4", "RangerStage5"},
     Multi = true,
     Default = ConfigSystem.CurrentConfig.SelectedActs or {RangerStage1 = true},
     Callback = function(Values)
@@ -2177,7 +2178,7 @@ RangerSection:AddToggle("AutoLeaveToggle", {
         ConfigSystem.SaveConfig()
         
         if Value then
-            print("Auto Leave đã được bật. Sẽ tự động rời map nếu không có kẻ địch và agent trong 10 giây")
+            print("Auto Leave đã được bật. Sẽ tự động rời map nếu không có kẻ địch và agent trong 10 giây (chỉ khi đang ở trong map)")
             
             -- Hủy vòng lặp cũ nếu có
             if autoLeaveLoop then
@@ -2192,8 +2193,8 @@ RangerSection:AddToggle("AutoLeaveToggle", {
                 local emptyTime = 0
                 
                 while autoLeaveEnabled do
-                    -- Chỉ kiểm tra nếu đang ở trong map Ranger Stage
-                    if isPlayerInRangerStageMap() then
+                    -- Chỉ kiểm tra khi người chơi đang ở trong map
+                    if isPlayerInMap() then
                         local areEmpty = checkEnemyFolder()
                         
                         if areEmpty then
@@ -2211,8 +2212,11 @@ RangerSection:AddToggle("AutoLeaveToggle", {
                             end
                         end
                     else
-                        -- Reset counter khi không ở trong map
-                        emptyTime = 0
+                        -- Reset counter nếu không ở trong map
+                        if emptyTime > 0 then
+                            emptyTime = 0
+                        end
+                        -- Không cần print thông báo ở đây để tránh spam
                     end
                     
                     wait(checkInterval)
@@ -2231,119 +2235,6 @@ RangerSection:AddToggle("AutoLeaveToggle", {
                 autoLeaveLoop:Disconnect()
                 autoLeaveLoop = nil
             end
-        end
-    end
-})
-
--- Thêm section Boss Event trong tab Play
-local BossEventSection = PlayTab:AddSection("Boss Event")
-
--- Hàm để tham gia Boss Event
-local function joinBossEvent()
-    -- Kiểm tra xem người chơi đã ở trong map chưa
-    if isPlayerInMap() then
-        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Boss Event")
-        return false
-    end
-    
-    local success, err = pcall(function()
-        -- Lấy Event
-        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 2)
-        
-        if not Event then
-            warn("Không tìm thấy Event để tham gia Boss Event")
-            return
-        end
-        
-        -- Gọi Boss Event
-        local args = {
-            [1] = "Boss-Event"
-        }
-        
-        Event:FireServer(unpack(args))
-        print("Đã gửi yêu cầu tham gia Boss Event")
-    end)
-    
-    if not success then
-        warn("Lỗi khi tham gia Boss Event: " .. tostring(err))
-        return false
-    end
-    
-    return true
-end
-
--- Lưu biến cho Boss Event Time Delay
-local bossEventTimeDelayInput = nil
-
--- Input cho Boss Event Time Delay
-bossEventTimeDelayInput = BossEventSection:AddInput("BossEventTimeDelayInput", {
-    Title = "Delay (1-30s)",
-    Placeholder = "Nhập delay",
-    Default = tostring(bossEventTimeDelay),
-    Numeric = true,
-    Finished = true,
-    Callback = function(Value)
-        local numValue = tonumber(Value)
-        if numValue and numValue >= 1 and numValue <= 30 then
-            bossEventTimeDelay = numValue
-            ConfigSystem.CurrentConfig.BossEventTimeDelay = numValue
-            ConfigSystem.SaveConfig()
-            print("Đã đặt Boss Event Time Delay (Input): " .. numValue .. " giây")
-            -- Bỏ cập nhật Slider
-            -- if bossEventTimeDelaySlider and bossEventTimeDelaySlider.Set then bossEventTimeDelaySlider:Set(numValue) end
-        else
-            print("Giá trị delay không hợp lệ (1-30)")
-            if bossEventTimeDelayInput and bossEventTimeDelayInput.Set then bossEventTimeDelayInput:Set(tostring(bossEventTimeDelay)) end
-        end
-    end
-})
-
--- Toggle Auto Join Boss Event
-BossEventSection:AddToggle("AutoJoinBossEventToggle", {
-    Title = "Auto Boss Event",
-    Default = ConfigSystem.CurrentConfig.AutoBossEvent or false,
-    Callback = function(Value)
-        autoBossEventEnabled = Value
-        ConfigSystem.CurrentConfig.AutoBossEvent = Value
-        ConfigSystem.SaveConfig()
-        
-        if autoBossEventEnabled then
-            -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
-            if isPlayerInMap() then
-                print("Đang ở trong map, Auto Boss Event sẽ hoạt động khi bạn rời khỏi map")
-            else
-                print("Auto Boss Event đã được bật, sẽ bắt đầu sau " .. bossEventTimeDelay .. " giây")
-                
-                -- Thực hiện tham gia Boss Event sau thời gian delay
-                spawn(function()
-                    wait(bossEventTimeDelay)
-                    if autoBossEventEnabled and not isPlayerInMap() then
-                        joinBossEvent()
-                    end
-                end)
-            end
-            
-            -- Tạo vòng lặp Auto Join Boss Event
-            spawn(function()
-                while autoBossEventEnabled and wait(30) do -- Thử join boss event mỗi 30 giây
-                    -- Chỉ thực hiện tham gia nếu người chơi không ở trong map
-                    if not isPlayerInMap() then
-                        -- Áp dụng time delay
-                        print("Đợi " .. bossEventTimeDelay .. " giây trước khi tham gia Boss Event")
-                        wait(bossEventTimeDelay)
-                        
-                        -- Kiểm tra lại sau khi delay
-                        if autoBossEventEnabled and not isPlayerInMap() then
-                            joinBossEvent()
-                        end
-                    else
-                        -- Người chơi đang ở trong map, không cần tham gia
-                        print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
-                    end
-                end
-            end)
-        else
-            print("Auto Boss Event đã được tắt")
         end
     end
 })
@@ -2651,11 +2542,11 @@ InGameSection:AddToggle("AutoPlayToggle", {
         
         -- Chỉ toggle khi trạng thái mong muốn khác với trạng thái hiện tại
         if Value ~= actualState then
-            toggleAutoPlay()
-            
             if Value then
+                toggleAutoPlay()
                 print("Auto Play đã được bật")
             else
+                toggleAutoPlay()
                 print("Auto Play đã được tắt")
             end
         else
@@ -3547,137 +3438,6 @@ spawn(function()
     end
 end)
 
--- Thêm section Easter Egg - Event trong tab Event
-local EasterEggSection = EventTab:AddSection("Easter Egg - Event")
-
--- Biến lưu trạng thái Easter Egg
-local autoJoinEasterEggEnabled = ConfigSystem.CurrentConfig.AutoJoinEasterEgg or false
-local easterEggTimeDelay = ConfigSystem.CurrentConfig.EasterEggTimeDelay or 5
-local autoJoinEasterEggLoop = nil
-
--- Hàm để tham gia Easter Egg Event
-local function joinEasterEggEvent()
-    -- Kiểm tra xem người chơi đã ở trong map chưa
-    if isPlayerInMap() then
-        print("Đã phát hiện người chơi đang ở trong map, không thực hiện join Easter Egg Event")
-        return false
-    end
-    
-    local success, err = pcall(function()
-        -- Lấy Event
-        local Event = safeGetPath(game:GetService("ReplicatedStorage"), {"Remote", "Server", "PlayRoom", "Event"}, 2)
-        
-        if not Event then
-            warn("Không tìm thấy Event để join Easter Egg Event")
-            return
-        end
-        
-        -- 1. Gửi lệnh Easter-Event
-        local args1 = {
-            [1] = "Easter-Event"
-        }
-        Event:FireServer(unpack(args1))
-        print("Đã gửi lệnh Easter-Event")
-        wait(1) -- Đợi 1 giây
-        
-        -- 2. Gửi lệnh Start
-        local args2 = {
-            [1] = "Start"
-        }
-        Event:FireServer(unpack(args2))
-        print("Đã gửi lệnh Start cho Easter Egg Event")
-    end)
-    
-    if not success then
-        warn("Lỗi khi tham gia Easter Egg Event: " .. tostring(err))
-        return false
-    end
-    
-    return true
-end
-
--- Lưu biến cho Easter Egg Time Delay
-local easterEggTimeDelayInput = nil
-
--- Input cho Easter Egg Time Delay
-easterEggTimeDelayInput = EasterEggSection:AddInput("EasterEggTimeDelayInput", {
-    Title = "Delay (1-60s)",
-    Placeholder = "Nhập delay",
-    Default = tostring(easterEggTimeDelay),
-    Numeric = true,
-    Finished = true,
-    Callback = function(Value)
-        local numValue = tonumber(Value)
-        if numValue and numValue >= 1 and numValue <= 60 then
-            easterEggTimeDelay = numValue
-            ConfigSystem.CurrentConfig.EasterEggTimeDelay = numValue
-            ConfigSystem.SaveConfig()
-            print("Đã đặt Easter Egg Time Delay (Input): " .. numValue .. " giây")
-            -- Bỏ cập nhật Slider
-            -- if easterEggTimeDelaySlider and easterEggTimeDelaySlider.Set then easterEggTimeDelaySlider:Set(numValue) end
-        else
-            print("Giá trị delay không hợp lệ (1-60)")
-            if easterEggTimeDelayInput and easterEggTimeDelayInput.Set then easterEggTimeDelayInput:Set(tostring(easterEggTimeDelay)) end
-        end
-    end
-})
-
--- Toggle Auto Join Easter Egg
-EasterEggSection:AddToggle("AutoJoinEasterEggToggle", {
-    Title = "Auto Join Easter Egg",
-    Default = ConfigSystem.CurrentConfig.AutoJoinEasterEgg or false,
-    Callback = function(Value)
-        autoJoinEasterEggEnabled = Value
-        ConfigSystem.CurrentConfig.AutoJoinEasterEgg = Value
-        ConfigSystem.SaveConfig()
-        
-        if Value then
-            -- Kiểm tra ngay lập tức nếu người chơi đang ở trong map
-            if isPlayerInMap() then
-                print("Đang ở trong map, Auto Join Easter Egg sẽ hoạt động khi bạn rời khỏi map")
-            else
-                print("Auto Join Easter Egg đã được bật, sẽ bắt đầu sau " .. easterEggTimeDelay .. " giây")
-                
-                -- Thực hiện join Easter Egg Event sau thời gian delay
-                spawn(function()
-                    wait(easterEggTimeDelay)
-                    if autoJoinEasterEggEnabled and not isPlayerInMap() then
-                        joinEasterEggEvent()
-                    end
-                end)
-            end
-            
-            -- Tạo vòng lặp Auto Join Easter Egg Event
-            spawn(function()
-                while autoJoinEasterEggEnabled and wait(10) do -- Thử join mỗi 10 giây
-                    -- Chỉ thực hiện join nếu người chơi không ở trong map
-                    if not isPlayerInMap() then
-                        -- Áp dụng time delay
-                        print("Đợi " .. easterEggTimeDelay .. " giây trước khi join Easter Egg Event")
-                        wait(easterEggTimeDelay)
-                        
-                        -- Kiểm tra lại sau khi delay
-                        if autoJoinEasterEggEnabled and not isPlayerInMap() then
-                            joinEasterEggEvent()
-                        end
-                    else
-                        -- Người chơi đang ở trong map, không cần join
-                        print("Đang ở trong map, đợi đến khi người chơi rời khỏi map")
-                    end
-                end
-            end)
-        else
-            print("Auto Join Easter Egg đã được tắt")
-            
-            -- Hủy vòng lặp nếu có
-            if autoJoinEasterEggLoop then
-                autoJoinEasterEggLoop:Disconnect()
-                autoJoinEasterEggLoop = nil
-            end
-        end
-    end
-})
-
 -- Khởi tạo Anti AFK khi script khởi động
 spawn(function()
     -- Đợi một chút để script khởi động hoàn tất
@@ -3855,8 +3615,8 @@ local function createEmbed(rewards, gameInfo)
     local playerName = game:GetService("Players").LocalPlayer.Name
     statsText = "- Name: " .. "||" .. playerName .. "||\n"
     
-    -- Luôn hiển thị các tài nguyên chính: Level, Gem, Gold, Egg
-    local mainResources = {"Level", "Gem", "Gold", "Egg"}
+    -- Luôn hiển thị các tài nguyên chính: Level, Gem, Gold
+    local mainResources = {"Level", "Gem", "Gold"}
     for _, resourceName in ipairs(mainResources) do
         local value = playerResources[resourceName] or 0
         statsText = statsText .. "- " .. resourceName .. ": " .. value .. "\n"
@@ -4220,95 +3980,6 @@ WebhookSection:AddButton({
 
 -- Khởi động vòng lặp kiểm tra game kết thúc
 setupWebhookMonitor()
-
--- Thêm section Egg Event trong tab Shop
-local EggEventSection = ShopTab:AddSection("Egg Event")
-
--- Biến lưu trạng thái Auto Buy Egg
-local autoBuyEggEnabled = ConfigSystem.CurrentConfig.AutoBuyEgg or false
-local autoBuyEggLoop = nil
-
--- Biến lưu trạng thái Auto Open Egg
-local autoOpenEggEnabled = ConfigSystem.CurrentConfig.AutoOpenEgg or false
-local autoOpenEggLoop = nil
-
--- Toggle Auto Buy Egg
-EggEventSection:AddToggle("AutoBuyEggToggle", {
-    Title = "Auto Buy Egg",
-    Default = autoBuyEggEnabled,
-    Callback = function(Value)
-        autoBuyEggEnabled = Value
-        ConfigSystem.CurrentConfig.AutoBuyEgg = Value
-        ConfigSystem.SaveConfig()
-        if Value then
-            print("Auto Buy Egg đã được bật")
-            if autoBuyEggLoop then
-                autoBuyEggLoop:Disconnect()
-                autoBuyEggLoop = nil
-            end
-            spawn(function()
-                while autoBuyEggEnabled do
-                    local args = {"Egg Capsule", 1}
-                    local success, err = pcall(function()
-                        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("EasterEgg"):FireServer(unpack(args))
-                    end)
-                    if not success then
-                        warn("Lỗi khi Auto Buy Egg: " .. tostring(err))
-                    end
-                    wait(0.5)
-                end
-            end)
-        else
-            print("Auto Buy Egg đã được tắt")
-            if autoBuyEggLoop then
-                autoBuyEggLoop:Disconnect()
-                autoBuyEggLoop = nil
-            end
-        end
-    end
-})
-
--- Toggle Auto Open Egg
-EggEventSection:AddToggle("AutoOpenEggToggle", {
-    Title = "Auto Open Egg",
-    Default = autoOpenEggEnabled,
-    Callback = function(Value)
-        autoOpenEggEnabled = Value
-        ConfigSystem.CurrentConfig.AutoOpenEgg = Value
-        ConfigSystem.SaveConfig()
-        if Value then
-            print("Auto Open Egg đã được bật")
-            if autoOpenEggLoop then
-                autoOpenEggLoop:Disconnect()
-                autoOpenEggLoop = nil
-            end
-            spawn(function()
-                while autoOpenEggEnabled do
-                    local playerName = game:GetService("Players").LocalPlayer.Name
-                    local eggItem = game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild(playerName):WaitForChild("Items"):FindFirstChild("Egg Capsule")
-                    if eggItem then
-                        local args = {eggItem, {SummonAmount = 1}}
-                        local success, err = pcall(function()
-                            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("ItemUse"):FireServer(unpack(args))
-                        end)
-                        if not success then
-                            warn("Lỗi khi Auto Open Egg: " .. tostring(err))
-                        end
-                    else
-                        warn("Không tìm thấy Egg Capsule trong Items!")
-                    end
-                    wait(0.5)
-                end
-            end)
-        else
-            print("Auto Open Egg đã được tắt")
-            if autoOpenEggLoop then
-                autoOpenEggLoop:Disconnect()
-                autoOpenEggLoop = nil
-            end
-        end
-    end
-})
 
 -- Toggle Auto Join All (Ranger)
 local autoJoinAllRangerEnabled = ConfigSystem.CurrentConfig.AutoJoinAllRanger or false
@@ -5514,6 +5185,276 @@ TraitRerollSection:AddButton({
             print("✅ Đã làm mới danh sách unit: " .. #newUnitList .. " unit")
         else
             print("❌ Không tìm thấy unit nào trong Collection")
+        end
+    end
+})
+
+-- Thêm section Portal trong tab Portal
+local PortalSection = PortalTab:AddSection("Portal")
+
+-- Biến lưu trạng thái Portal
+local selectedPortals = ConfigSystem.CurrentConfig.SelectedPortals or {}
+local autoOpenPortalEnabled = ConfigSystem.CurrentConfig.AutoOpenPortal or false
+local autoOpenPortalLoop = nil
+local autoStartPortalEnabled = ConfigSystem.CurrentConfig.AutoStartPortal or false
+local autoStartPortalLoop = nil
+
+-- Dropdown để chọn Portal
+PortalSection:AddDropdown("PortalDropdown", {
+    Title = "Choose Portal",
+    Values = {"Ghoul City Portal I", "Ghoul City Portal II", "Ghoul City Portal III"},
+    Multi = true,
+    Default = ConfigSystem.CurrentConfig.SelectedPortals or {},
+    Callback = function(Values)
+        selectedPortals = Values
+        ConfigSystem.CurrentConfig.SelectedPortals = Values
+        ConfigSystem.SaveConfig()
+        
+        local selectedPortalsList = {}
+        for portal, isSelected in pairs(Values) do
+            if isSelected then
+                table.insert(selectedPortalsList, portal)
+            end
+        end
+        
+        if #selectedPortalsList > 0 then
+            print("Đã chọn portal: " .. table.concat(selectedPortalsList, ", "))
+        else
+            print("Chưa chọn portal nào")
+        end
+    end
+})
+
+-- Hàm để mở Portal
+local function openPortal(portalName)
+    local success, err = pcall(function()
+        local playerName = game:GetService("Players").LocalPlayer.Name
+        local portalItem = game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild(playerName):WaitForChild("Items"):WaitForChild(portalName)
+        
+        if portalItem then
+            local args = {portalItem}
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("ItemUse"):FireServer(unpack(args))
+            print("Đã mở: " .. portalName)
+            return true
+        else
+            print("Không tìm thấy portal: " .. portalName)
+            return false
+        end
+    end)
+    
+    if not success then
+        warn("Lỗi khi mở portal: " .. tostring(err))
+        return false
+    end
+    
+    return success
+end
+
+-- Toggle Auto Open Portal
+PortalSection:AddToggle("OpenPortalToggle", {
+    Title = "Open Portal",
+    Default = ConfigSystem.CurrentConfig.AutoOpenPortal or false,
+    Callback = function(Value)
+        autoOpenPortalEnabled = Value
+        ConfigSystem.CurrentConfig.AutoOpenPortal = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            -- Kiểm tra nếu người chơi đang ở trong map
+            if isPlayerInMap() then
+                print("Đang ở trong map, không thể kích hoạt Open Portal. Vui lòng trở về lobby trước.")
+                -- Reset toggle về false
+                PortalSection:GetComponent("OpenPortalToggle"):Set(false)
+                return
+            end
+            
+            local hasSelectedPortal = false
+            for _, isSelected in pairs(selectedPortals) do
+                if isSelected then
+                    hasSelectedPortal = true
+                    break
+                end
+            end
+            
+            if not hasSelectedPortal then
+                print("Vui lòng chọn ít nhất một portal trước khi bật Open Portal")
+                -- Reset toggle về false
+                PortalSection:GetComponent("OpenPortalToggle"):Set(false)
+                return
+            end
+            
+            print("Auto Open Portal đã được bật")
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoOpenPortalLoop then
+                autoOpenPortalLoop:Disconnect()
+                autoOpenPortalLoop = nil
+            end
+            
+            -- Tạo vòng lặp mới
+            spawn(function()
+                while autoOpenPortalEnabled and wait(1) do
+                    -- Kiểm tra liên tục xem người chơi có vào map không
+                    if isPlayerInMap() then
+                        print("Đã phát hiện người chơi vào map, tự động tắt Open Portal")
+                        autoOpenPortalEnabled = false
+                        PortalSection:GetComponent("OpenPortalToggle"):Set(false)
+                        break
+                    end
+                    
+                    for portal, isSelected in pairs(selectedPortals) do
+                        if isSelected then
+                            openPortal(portal)
+                            wait(0.5) -- Đợi 0.5 giây giữa các lần mở portal
+                        end
+                    end
+                    
+                    wait(10) -- Đợi 10 giây trước khi bắt đầu vòng lặp mới
+                end
+            end)
+        else
+            print("Auto Open Portal đã được tắt")
+            
+            -- Hủy vòng lặp nếu có
+            if autoOpenPortalLoop then
+                autoOpenPortalLoop:Disconnect()
+                autoOpenPortalLoop = nil
+            end
+        end
+    end
+})
+
+-- Thêm section RC Exchange trong tab Shop
+local RCExchangeSection = ShopTab:AddSection("RC Exchange")
+
+-- Biến lưu trạng thái Buy Quinque
+local autoBuyQuinqueEnabled = ConfigSystem.CurrentConfig.AutoBuyQuinque or false
+local autoBuyQuinqueLoop = nil
+
+-- Hàm để mua Quinque Box
+local function buyQuinqueBox()
+    local success, err = pcall(function()
+        local args = {
+            "Quinque Box",
+            1
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RCExchange"):FireServer(unpack(args))
+        print("Đã mua Quinque Box")
+    end)
+    
+    if not success then
+        warn("Lỗi khi mua Quinque Box: " .. tostring(err))
+    end
+end
+
+-- Toggle Buy Quinque
+RCExchangeSection:AddToggle("BuyQuinqueToggle", {
+    Title = "Buy Quinque",
+    Default = autoBuyQuinqueEnabled,
+    Callback = function(Value)
+        autoBuyQuinqueEnabled = Value
+        ConfigSystem.CurrentConfig.AutoBuyQuinque = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            print("Auto Buy Quinque đã được bật")
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoBuyQuinqueLoop then
+                autoBuyQuinqueLoop:Disconnect()
+                autoBuyQuinqueLoop = nil
+            end
+            
+            -- Tạo vòng lặp mới
+            spawn(function()
+                while autoBuyQuinqueEnabled do
+                    buyQuinqueBox()
+                    wait(0.5) -- Đợi 0.5 giây giữa các lần mua
+                end
+            end)
+        else
+            print("Auto Buy Quinque đã được tắt")
+            
+            -- Hủy vòng lặp nếu có
+            if autoBuyQuinqueLoop then
+                autoBuyQuinqueLoop:Disconnect()
+                autoBuyQuinqueLoop = nil
+            end
+        end
+    end
+})
+
+-- Hàm để bắt đầu Portal
+local function startPortal()
+    local success, err = pcall(function()
+        local args = {
+            "Start"
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("PortalEvent"):FireServer(unpack(args))
+        print("Đã gửi lệnh Start Portal")
+    end)
+    
+    if not success then
+        warn("Lỗi khi bắt đầu Portal: " .. tostring(err))
+        return false
+    end
+    
+    return true
+end
+
+-- Toggle Start Portal
+PortalSection:AddToggle("StartPortalToggle", {
+    Title = "Start Portal",
+    Default = autoStartPortalEnabled,
+    Callback = function(Value)
+        autoStartPortalEnabled = Value
+        ConfigSystem.CurrentConfig.AutoStartPortal = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            -- Kiểm tra nếu người chơi đang ở trong map
+            if isPlayerInMap() then
+                print("Đang ở trong map, không thể kích hoạt Start Portal. Vui lòng trở về lobby trước.")
+                -- Reset toggle về false
+                PortalSection:GetComponent("StartPortalToggle"):Set(false)
+                return
+            end
+            
+            print("Auto Start Portal đã được bật")
+            
+            -- Hủy vòng lặp cũ nếu có
+            if autoStartPortalLoop then
+                autoStartPortalLoop:Disconnect()
+                autoStartPortalLoop = nil
+            end
+            
+            -- Gọi ngay một lần
+            startPortal()
+            
+            -- Tạo vòng lặp mới
+            spawn(function()
+                while autoStartPortalEnabled and wait(1) do
+                    -- Kiểm tra liên tục xem người chơi có vào map không
+                    if isPlayerInMap() then
+                        print("Đã phát hiện người chơi vào map, tự động tắt Start Portal")
+                        autoStartPortalEnabled = false
+                        PortalSection:GetComponent("StartPortalToggle"):Set(false)
+                        break
+                    end
+                    
+                    -- Gửi lệnh Start Portal mỗi 3 giây
+                    startPortal()
+                    wait(3) -- Đợi 3 giây giữa các lần gửi lệnh Start
+                end
+            end)
+        else
+            print("Auto Start Portal đã được tắt")
+            
+            -- Hủy vòng lặp nếu có
+            if autoStartPortalLoop then
+                autoStartPortalLoop:Disconnect()
+                autoStartPortalLoop = nil
+            end
         end
     end
 })
