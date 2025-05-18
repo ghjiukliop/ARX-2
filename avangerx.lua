@@ -4861,7 +4861,7 @@ local function setupRewardsUIWatcher()
             end)
             
             -- Kiểm tra RewardsUI định kỳ
-            while wait(0.5) do
+            while task.wait(0.5) do
                 local rewardsUI = player.PlayerGui:FindFirstChild("RewardsUI")
                 
                 -- Chỉ kích hoạt nếu RewardsUI được bật VÀ chưa thực hiện Auto Retry/Auto Next
@@ -5189,15 +5189,82 @@ TraitRerollSection:AddButton({
     end
 })
 
--- Thêm section Portal trong tab Portal
-local PortalSection = PortalTab:AddSection("Portal")
+-- Tạo hệ thống toàn cục để giảm số lượng biến cục bộ
+_G.SystemManager = _G.SystemManager or {}
 
--- Biến lưu trạng thái Portal
-local selectedPortals = ConfigSystem.CurrentConfig.SelectedPortals or {}
-local autoOpenPortalEnabled = ConfigSystem.CurrentConfig.AutoOpenPortal or false
-local autoOpenPortalLoop = nil
-local autoStartPortalEnabled = ConfigSystem.CurrentConfig.AutoStartPortal or false
-local autoStartPortalLoop = nil
+-- Hợp nhất tất cả các biến Portal vào một bảng
+_G.SystemManager.Portal = {
+    SelectedPortals = ConfigSystem.CurrentConfig.SelectedPortals or {},
+    AutoOpenEnabled = ConfigSystem.CurrentConfig.AutoOpenPortal or false,
+    AutoOpenLoop = nil,
+    AutoStartEnabled = ConfigSystem.CurrentConfig.AutoStartPortal or false,
+    AutoStartLoop = nil,
+    
+    Open = function(portalName)
+        local success, err = pcall(function()
+            local playerName = game:GetService("Players").LocalPlayer.Name
+            local portalItem = game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild(playerName):WaitForChild("Items"):WaitForChild(portalName)
+            
+            if portalItem then
+                local args = {portalItem}
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("ItemUse"):FireServer(unpack(args))
+                print("Đã mở: " .. portalName)
+                return true
+            else
+                print("Không tìm thấy portal: " .. portalName)
+                return false
+            end
+        end)
+        
+        if not success then
+            warn("Lỗi khi mở portal: " .. tostring(err))
+            return false
+        end
+        
+        return success
+    end,
+    
+    Start = function()
+        local success, err = pcall(function()
+            local args = {
+                "Start"
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("PortalEvent"):FireServer(unpack(args))
+            print("Đã gửi lệnh Start Portal")
+        end)
+        
+        if not success then
+            warn("Lỗi khi bắt đầu Portal: " .. tostring(err))
+            return false
+        end
+        
+        return true
+    end
+}
+
+-- Hợp nhất RC Exchange vào bảng toàn cục
+_G.SystemManager.RCExchange = {
+    AutoBuyEnabled = ConfigSystem.CurrentConfig.AutoBuyQuinque or false,
+    AutoBuyLoop = nil,
+    
+    BuyQuinque = function()
+        local success, err = pcall(function()
+            local args = {
+                "Quinque Box",
+                1
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RCExchange"):FireServer(unpack(args))
+            print("Đã mua Quinque Box")
+        end)
+        
+        if not success then
+            warn("Lỗi khi mua Quinque Box: " .. tostring(err))
+        end
+    end
+}
+
+-- Cập nhật lại các tham chiếu tới các biến Portal
+local PortalSection = PortalTab:AddSection("Portal")
 
 -- Dropdown để chọn Portal
 PortalSection:AddDropdown("PortalDropdown", {
@@ -5206,7 +5273,7 @@ PortalSection:AddDropdown("PortalDropdown", {
     Multi = true,
     Default = ConfigSystem.CurrentConfig.SelectedPortals or {},
     Callback = function(Values)
-        selectedPortals = Values
+        _G.SystemManager.Portal.SelectedPortals = Values
         ConfigSystem.CurrentConfig.SelectedPortals = Values
         ConfigSystem.SaveConfig()
         
@@ -5225,37 +5292,12 @@ PortalSection:AddDropdown("PortalDropdown", {
     end
 })
 
--- Hàm để mở Portal
-local function openPortal(portalName)
-    local success, err = pcall(function()
-        local playerName = game:GetService("Players").LocalPlayer.Name
-        local portalItem = game:GetService("ReplicatedStorage"):WaitForChild("Player_Data"):WaitForChild(playerName):WaitForChild("Items"):WaitForChild(portalName)
-        
-        if portalItem then
-            local args = {portalItem}
-            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("ItemUse"):FireServer(unpack(args))
-            print("Đã mở: " .. portalName)
-            return true
-        else
-            print("Không tìm thấy portal: " .. portalName)
-            return false
-        end
-    end)
-    
-    if not success then
-        warn("Lỗi khi mở portal: " .. tostring(err))
-        return false
-    end
-    
-    return success
-end
-
 -- Toggle Auto Open Portal
 PortalSection:AddToggle("OpenPortalToggle", {
     Title = "Open Portal",
     Default = ConfigSystem.CurrentConfig.AutoOpenPortal or false,
     Callback = function(Value)
-        autoOpenPortalEnabled = Value
+        _G.SystemManager.Portal.AutoOpenEnabled = Value
         ConfigSystem.CurrentConfig.AutoOpenPortal = Value
         ConfigSystem.SaveConfig()
         
@@ -5269,7 +5311,7 @@ PortalSection:AddToggle("OpenPortalToggle", {
             end
             
             local hasSelectedPortal = false
-            for _, isSelected in pairs(selectedPortals) do
+            for _, isSelected in pairs(_G.SystemManager.Portal.SelectedPortals) do
                 if isSelected then
                     hasSelectedPortal = true
                     break
@@ -5286,25 +5328,25 @@ PortalSection:AddToggle("OpenPortalToggle", {
             print("Auto Open Portal đã được bật")
             
             -- Hủy vòng lặp cũ nếu có
-            if autoOpenPortalLoop then
-                autoOpenPortalLoop:Disconnect()
-                autoOpenPortalLoop = nil
+            if _G.SystemManager.Portal.AutoOpenLoop then
+                _G.SystemManager.Portal.AutoOpenLoop:Disconnect()
+                _G.SystemManager.Portal.AutoOpenLoop = nil
             end
             
             -- Tạo vòng lặp mới
             spawn(function()
-                while autoOpenPortalEnabled and wait(1) do
+                while _G.SystemManager.Portal.AutoOpenEnabled and wait(1) do
                     -- Kiểm tra liên tục xem người chơi có vào map không
                     if isPlayerInMap() then
                         print("Đã phát hiện người chơi vào map, tự động tắt Open Portal")
-                        autoOpenPortalEnabled = false
+                        _G.SystemManager.Portal.AutoOpenEnabled = false
                         PortalSection:GetComponent("OpenPortalToggle"):Set(false)
                         break
                     end
                     
-                    for portal, isSelected in pairs(selectedPortals) do
+                    for portal, isSelected in pairs(_G.SystemManager.Portal.SelectedPortals) do
                         if isSelected then
-                            openPortal(portal)
+                            _G.SystemManager.Portal.Open(portal)
                             wait(0.5) -- Đợi 0.5 giây giữa các lần mở portal
                         end
                     end
@@ -5316,98 +5358,20 @@ PortalSection:AddToggle("OpenPortalToggle", {
             print("Auto Open Portal đã được tắt")
             
             -- Hủy vòng lặp nếu có
-            if autoOpenPortalLoop then
-                autoOpenPortalLoop:Disconnect()
-                autoOpenPortalLoop = nil
+            if _G.SystemManager.Portal.AutoOpenLoop then
+                _G.SystemManager.Portal.AutoOpenLoop:Disconnect()
+                _G.SystemManager.Portal.AutoOpenLoop = nil
             end
         end
     end
 })
-
--- Thêm section RC Exchange trong tab Shop
-local RCExchangeSection = ShopTab:AddSection("RC Exchange")
-
--- Biến lưu trạng thái Buy Quinque
-local autoBuyQuinqueEnabled = ConfigSystem.CurrentConfig.AutoBuyQuinque or false
-local autoBuyQuinqueLoop = nil
-
--- Hàm để mua Quinque Box
-local function buyQuinqueBox()
-    local success, err = pcall(function()
-        local args = {
-            "Quinque Box",
-            1
-        }
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("RCExchange"):FireServer(unpack(args))
-        print("Đã mua Quinque Box")
-    end)
-    
-    if not success then
-        warn("Lỗi khi mua Quinque Box: " .. tostring(err))
-    end
-end
-
--- Toggle Buy Quinque
-RCExchangeSection:AddToggle("BuyQuinqueToggle", {
-    Title = "Buy Quinque",
-    Default = autoBuyQuinqueEnabled,
-    Callback = function(Value)
-        autoBuyQuinqueEnabled = Value
-        ConfigSystem.CurrentConfig.AutoBuyQuinque = Value
-        ConfigSystem.SaveConfig()
-        
-        if Value then
-            print("Auto Buy Quinque đã được bật")
-            
-            -- Hủy vòng lặp cũ nếu có
-            if autoBuyQuinqueLoop then
-                autoBuyQuinqueLoop:Disconnect()
-                autoBuyQuinqueLoop = nil
-            end
-            
-            -- Tạo vòng lặp mới
-            spawn(function()
-                while autoBuyQuinqueEnabled do
-                    buyQuinqueBox()
-                    wait(0.5) -- Đợi 0.5 giây giữa các lần mua
-                end
-            end)
-        else
-            print("Auto Buy Quinque đã được tắt")
-            
-            -- Hủy vòng lặp nếu có
-            if autoBuyQuinqueLoop then
-                autoBuyQuinqueLoop:Disconnect()
-                autoBuyQuinqueLoop = nil
-            end
-        end
-    end
-})
-
--- Hàm để bắt đầu Portal
-local function startPortal()
-    local success, err = pcall(function()
-        local args = {
-            "Start"
-        }
-        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Lobby"):WaitForChild("PortalEvent"):FireServer(unpack(args))
-        print("Đã gửi lệnh Start Portal")
-    end)
-    
-    if not success then
-        warn("Lỗi khi bắt đầu Portal: " .. tostring(err))
-        return false
-    end
-    
-    return true
-end
 
 -- Toggle Start Portal
 PortalSection:AddToggle("StartPortalToggle", {
     Title = "Start Portal",
-    Default = autoStartPortalEnabled,
+    Default = ConfigSystem.CurrentConfig.AutoStartPortal or false,
     Callback = function(Value)
-        autoStartPortalEnabled = Value
+        _G.SystemManager.Portal.AutoStartEnabled = Value
         ConfigSystem.CurrentConfig.AutoStartPortal = Value
         ConfigSystem.SaveConfig()
         
@@ -5423,27 +5387,27 @@ PortalSection:AddToggle("StartPortalToggle", {
             print("Auto Start Portal đã được bật")
             
             -- Hủy vòng lặp cũ nếu có
-            if autoStartPortalLoop then
-                autoStartPortalLoop:Disconnect()
-                autoStartPortalLoop = nil
+            if _G.SystemManager.Portal.AutoStartLoop then
+                _G.SystemManager.Portal.AutoStartLoop:Disconnect()
+                _G.SystemManager.Portal.AutoStartLoop = nil
             end
             
             -- Gọi ngay một lần
-            startPortal()
+            _G.SystemManager.Portal.Start()
             
             -- Tạo vòng lặp mới
             spawn(function()
-                while autoStartPortalEnabled and wait(1) do
+                while _G.SystemManager.Portal.AutoStartEnabled and wait(1) do
                     -- Kiểm tra liên tục xem người chơi có vào map không
                     if isPlayerInMap() then
                         print("Đã phát hiện người chơi vào map, tự động tắt Start Portal")
-                        autoStartPortalEnabled = false
+                        _G.SystemManager.Portal.AutoStartEnabled = false
                         PortalSection:GetComponent("StartPortalToggle"):Set(false)
                         break
                     end
                     
                     -- Gửi lệnh Start Portal mỗi 3 giây
-                    startPortal()
+                    _G.SystemManager.Portal.Start()
                     wait(3) -- Đợi 3 giây giữa các lần gửi lệnh Start
                 end
             end)
@@ -5451,10 +5415,58 @@ PortalSection:AddToggle("StartPortalToggle", {
             print("Auto Start Portal đã được tắt")
             
             -- Hủy vòng lặp nếu có
-            if autoStartPortalLoop then
-                autoStartPortalLoop:Disconnect()
-                autoStartPortalLoop = nil
+            if _G.SystemManager.Portal.AutoStartLoop then
+                _G.SystemManager.Portal.AutoStartLoop:Disconnect()
+                _G.SystemManager.Portal.AutoStartLoop = nil
             end
         end
+    end
+})
+
+-- Thêm section RC Exchange trong tab Shop
+local RCExchangeSection = ShopTab:AddSection("RC Exchange")
+
+-- Toggle Buy Quinque
+RCExchangeSection:AddToggle("BuyQuinqueToggle", {
+    Title = "Buy Quinque",
+    Default = ConfigSystem.CurrentConfig.AutoBuyQuinque or false,
+    Callback = function(Value)
+        _G.SystemManager.RCExchange.AutoBuyEnabled = Value
+        ConfigSystem.CurrentConfig.AutoBuyQuinque = Value
+        ConfigSystem.SaveConfig()
+        
+        if Value then
+            print("Auto Buy Quinque đã được bật")
+            
+            -- Hủy vòng lặp cũ nếu có
+            if _G.SystemManager.RCExchange.AutoBuyLoop then
+                _G.SystemManager.RCExchange.AutoBuyLoop:Disconnect()
+                _G.SystemManager.RCExchange.AutoBuyLoop = nil
+            end
+            
+            -- Tạo vòng lặp mới
+            spawn(function()
+                while _G.SystemManager.RCExchange.AutoBuyEnabled do
+                    _G.SystemManager.RCExchange.BuyQuinque()
+                    wait(0.5) -- Đợi 0.5 giây giữa các lần mua
+                end
+            end)
+        else
+            print("Auto Buy Quinque đã được tắt")
+            
+            -- Hủy vòng lặp nếu có
+            if _G.SystemManager.RCExchange.AutoBuyLoop then
+                _G.SystemManager.RCExchange.AutoBuyLoop:Disconnect()
+                _G.SystemManager.RCExchange.AutoBuyLoop = nil
+            end
+        end
+    end
+})
+
+-- Thêm nút mua Quinque ngay lập tức
+RCExchangeSection:AddButton({
+    Title = "Buy Quinque Now",
+    Callback = function()
+        _G.SystemManager.RCExchange.BuyQuinque()
     end
 })
